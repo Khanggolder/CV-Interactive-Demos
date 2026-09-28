@@ -11,6 +11,7 @@ from utils.fourier import (
     create_highpass_mask,
     create_lowpass_mask,
     reconstruct_image,
+    reconstruction_for_display,
 )
 from utils.image_ops import (
     adjust_brightness_contrast,
@@ -18,6 +19,7 @@ from utils.image_ops import (
     equalize_histogram,
     gamma_correct,
     load_rgb_image,
+    mark_pixel_and_patch,
     to_gray,
 )
 
@@ -40,6 +42,12 @@ class ImageOpsTests(unittest.TestCase):
                 self.assertGreaterEqual(result.min(), 0)
                 self.assertLessEqual(result.max(), 255)
 
+    def test_point_operation_examples_match_displayed_math(self) -> None:
+        pixel = np.array([100], dtype=np.uint8)
+        self.assertEqual(int(adjust_brightness_contrast(pixel, 1.5, 30)[0]), 180)
+        self.assertEqual(int(adjust_brightness_contrast(pixel, 3.0, 100)[0]), 255)
+        self.assertEqual(int(gamma_correct(pixel, 1.0)[0]), 100)
+
     def test_gray_and_histogram_operations(self) -> None:
         self.assertEqual(to_gray(self.rgb).shape, self.gray.shape)
         self.assertEqual(equalize_histogram(self.gray).shape, self.gray.shape)
@@ -52,10 +60,37 @@ class ImageOpsTests(unittest.TestCase):
         low = create_lowpass_mask(self.gray.shape, 4)
         high = create_highpass_mask(self.gray.shape, 4)
         np.testing.assert_allclose(low + high, 1.0)
-        for mask in (low, high):
-            reconstructed = reconstruct_image(apply_frequency_mask(shifted, mask))
-            self.assertEqual(reconstructed.shape, self.gray.shape)
-            self.assertEqual(reconstructed.dtype, np.uint8)
+
+        reconstructed_all = reconstruct_image(shifted)
+        np.testing.assert_allclose(reconstructed_all, self.gray, atol=1e-4)
+
+        reconstructed_low = reconstruct_image(apply_frequency_mask(shifted, low))
+        reconstructed_high = reconstruct_image(apply_frequency_mask(shifted, high))
+        np.testing.assert_allclose(
+            reconstructed_low + reconstructed_high, self.gray, atol=1e-4
+        )
+        self.assertAlmostEqual(
+            float(reconstructed_low.mean()), float(self.gray.mean()), places=4
+        )
+        self.assertAlmostEqual(float(reconstructed_high.mean()), 0.0, places=4)
+
+        low_display = reconstruction_for_display(reconstructed_low)
+        high_display = reconstruction_for_display(reconstructed_high, signed=True)
+        for display in (low_display, high_display):
+            self.assertEqual(display.shape, self.gray.shape)
+            self.assertEqual(display.dtype, np.uint8)
+
+        rounded = reconstruction_for_display(
+            np.array([[0.49, 0.51, 254.6]], dtype=np.float32)
+        )
+        np.testing.assert_array_equal(rounded, np.array([[0, 1, 255]], dtype=np.uint8))
+
+    def test_pixel_marker_is_rgb_and_does_not_mutate_input(self) -> None:
+        original = self.gray.copy()
+        marked = mark_pixel_and_patch(self.gray, 8, 8)
+        np.testing.assert_array_equal(self.gray, original)
+        self.assertEqual(marked.shape, (16, 16, 3))
+        self.assertEqual(marked.dtype, np.uint8)
 
     def test_png_and_jpeg_decode_as_rgb(self) -> None:
         with TemporaryDirectory() as directory:

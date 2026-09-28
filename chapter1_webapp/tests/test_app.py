@@ -33,7 +33,12 @@ class StreamlitAppTests(unittest.TestCase):
         self.assert_clean()
 
         self.navigate("3. Gamma")
+        self.assertEqual(
+            self.app.radio(key="gamma_mode").value, "Grayscale intensity"
+        )
         self.app.slider(key="gamma_value").set_value(0.1).run()
+        self.assert_clean()
+        self.app.radio(key="gamma_mode").set_value("RGB từng kênh").run()
         self.assert_clean()
         self.app.slider(key="gamma_value").set_value(5.0).run()
         self.assert_clean()
@@ -49,8 +54,15 @@ class StreamlitAppTests(unittest.TestCase):
         self.assert_clean()
         self.app.radio(key="fourier_filter").set_value("Ideal Low-pass").run()
         self.assert_clean()
+        self.app.checkbox(key="fourier_reveal").set_value(True).run()
+        self.assert_clean()
         self.app.radio(key="fourier_filter").set_value("Ideal High-pass").run()
         self.assert_clean()
+        self.app.checkbox(key="fourier_reveal").set_value(True).run()
+        self.assert_clean()
+        self.app.selectbox(key="sample_name").set_value("Cạnh rõ").run()
+        self.assert_clean()
+        self.assertFalse(self.app.checkbox(key="fourier_reveal").value)
 
         self.navigate("6. Convolution Kernels")
         self.app.selectbox(key="sample_name").set_value("Tương phản thấp").run()
