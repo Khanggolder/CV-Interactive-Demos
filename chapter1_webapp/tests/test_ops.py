@@ -80,6 +80,11 @@ class ImageOpsTests(unittest.TestCase):
             self.assertEqual(display.shape, self.gray.shape)
             self.assertEqual(display.dtype, np.uint8)
 
+        rounded = reconstruction_for_display(
+            np.array([[0.49, 0.51, 254.6]], dtype=np.float32)
+        )
+        np.testing.assert_array_equal(rounded, np.array([[0, 1, 255]], dtype=np.uint8))
+
     def test_pixel_marker_is_rgb_and_does_not_mutate_input(self) -> None:
         original = self.gray.copy()
         marked = mark_pixel_and_patch(self.gray, 8, 8)

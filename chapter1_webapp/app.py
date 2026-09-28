@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 
 import numpy as np
@@ -137,6 +138,15 @@ def set_gamma(value: float) -> None:
 
 def hide_fourier_result() -> None:
     st.session_state.fourier_reveal = False
+
+
+def reset_fourier_reveal_for_new_image(image: np.ndarray) -> None:
+    """Hide Fourier output only when the input pixels actually change."""
+    fingerprint = hashlib.sha256(image.tobytes()).hexdigest()
+    previous = st.session_state.get("fourier_input_fingerprint")
+    if previous is not None and previous != fingerprint:
+        st.session_state.fourier_reveal = False
+    st.session_state.fourier_input_fingerprint = fingerprint
 
 
 def pixel_explorer(image_rgb: np.ndarray) -> None:
@@ -294,6 +304,16 @@ def brightness_contrast(image_rgb: np.ndarray) -> None:
 def gamma_demo(image_rgb: np.ndarray) -> None:
     page_intro("3 · Gamma Correction", "Quan sát đồng thời ảnh và hàm ánh xạ phi tuyến.")
     section_label("1 · PARAMETER")
+    mode = st.radio(
+        "Không gian xử lý",
+        ("Grayscale intensity", "RGB từng kênh"),
+        horizontal=True,
+        key="gamma_mode",
+    )
+    image = to_gray(image_rgb) if mode == "Grayscale intensity" else image_rgb
+    if mode == "RGB từng kênh":
+        st.caption("Cùng một hàm gamma được áp dụng độc lập lên từng kênh R, G, B.")
+
     p1, p2, p3, _ = st.columns([1, 1, 1, 3])
     p1.button("γ = 0.5", on_click=set_gamma, args=(0.5,), width="stretch")
     p2.button("γ = 1.0", on_click=set_gamma, args=(1.0,), width="stretch")
@@ -301,15 +321,21 @@ def gamma_demo(image_rgb: np.ndarray) -> None:
     gamma_control, intensity_control = st.columns(2, gap="large")
     gamma = gamma_control.slider("γ", 0.1, 5.0, 1.0, 0.05, key="gamma_value")
     sample_intensity = intensity_control.slider(
-        "Input intensity mẫu", 0, 255, 100, key="gamma_sample_intensity"
+        "Input intensity mẫu"
+        if mode == "Grayscale intensity"
+        else "Giá trị kênh mẫu (R/G/B)",
+        0,
+        255,
+        100,
+        key="gamma_sample_intensity",
     )
     sample_output = 255.0 * (sample_intensity / 255.0) ** gamma
-    result = gamma_correct(image_rgb, gamma)
+    result = gamma_correct(image, gamma)
 
     section_label("2 · INPUT → MAPPING → OUTPUT")
     original, curve, output = st.columns([1, 1.1, 1], gap="large")
     with original:
-        show_image(image_rgb, "ORIGINAL")
+        show_image(image, "ORIGINAL")
     with curve:
         st.plotly_chart(
             gamma_curve_figure(gamma, sample_intensity), config=PLOT_CONFIG
@@ -323,9 +349,10 @@ def gamma_demo(image_rgb: np.ndarray) -> None:
         show_image(result, "RESULT")
 
     section_label("3 · WHAT CHANGED?")
+    histogram_mode = "Grayscale" if mode == "Grayscale intensity" else "RGB"
     h1, h2 = st.columns(2, gap="large")
-    h1.plotly_chart(histogram_figure(image_rgb, "Grayscale", "Before"), config=PLOT_CONFIG)
-    h2.plotly_chart(histogram_figure(result, "Grayscale", "After"), config=PLOT_CONFIG)
+    h1.plotly_chart(histogram_figure(image, histogram_mode, "Before"), config=PLOT_CONFIG)
+    h2.plotly_chart(histogram_figure(result, histogram_mode, "After"), config=PLOT_CONFIG)
     if gamma < 1:
         st.info("γ < 1 → khuếch đại vùng tối → ảnh thường sáng hơn.")
     elif gamma > 1:
@@ -392,6 +419,7 @@ def histogram_demo(image_rgb: np.ndarray) -> None:
 
 def fourier_demo(image_rgb: np.ndarray) -> None:
     page_intro("5 · Fourier Transform", "Từ miền không gian sang miền tần số, lọc, rồi tái tạo ảnh.")
+    reset_fourier_reveal_for_new_image(image_rgb)
     gray = to_gray(image_rgb)
     fft, shifted = compute_fft(gray)
     raw_spectrum = magnitude_spectrum(fft)

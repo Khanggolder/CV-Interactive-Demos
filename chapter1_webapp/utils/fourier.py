@@ -65,7 +65,7 @@ def reconstruction_for_display(
     visualization and must not be reused as image data.
     """
     if not signed:
-        return np.clip(reconstructed, 0, 255).astype(np.uint8)
+        return np.rint(np.clip(reconstructed, 0, 255)).astype(np.uint8)
 
     max_abs = float(np.max(np.abs(reconstructed)))
     if max_abs == 0:
