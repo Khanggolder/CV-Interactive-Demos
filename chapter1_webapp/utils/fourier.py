@@ -50,11 +50,25 @@ def apply_frequency_mask(
 
 
 def reconstruct_image(masked_shifted_fft: np.ndarray) -> np.ndarray:
-    """Inverse-shift, inverse-transform and normalize for display."""
+    """Return the real-valued inverse FFT without display normalization."""
     reconstructed = np.real(np.fft.ifft2(np.fft.ifftshift(masked_shifted_fft)))
-    low, high = float(reconstructed.min()), float(reconstructed.max())
-    if high <= low:
-        return np.zeros_like(reconstructed, dtype=np.uint8)
-    return np.clip((reconstructed - low) * 255.0 / (high - low), 0, 255).astype(
-        np.uint8
-    )
+    return reconstructed.astype(np.float32)
+
+
+def reconstruction_for_display(
+    reconstructed: np.ndarray, *, signed: bool = False
+) -> np.ndarray:
+    """Prepare an IFFT result for display while preserving its mathematical data.
+
+    Low-pass results use physical clipping only. Signed high-pass responses use a
+    symmetric display mapping where zero becomes mid-gray; this mapping is for
+    visualization and must not be reused as image data.
+    """
+    if not signed:
+        return np.clip(reconstructed, 0, 255).astype(np.uint8)
+
+    max_abs = float(np.max(np.abs(reconstructed)))
+    if max_abs == 0:
+        return np.full(reconstructed.shape, 128, dtype=np.uint8)
+    display = 127.5 + 127.5 * reconstructed / max_abs
+    return np.rint(np.clip(display, 0, 255)).astype(np.uint8)

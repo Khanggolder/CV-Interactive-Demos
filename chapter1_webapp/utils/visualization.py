@@ -45,15 +45,27 @@ def histogram_figure(
         margin={"l": 42, "r": 15, "t": 45, "b": 38},
         paper_bgcolor="white",
         plot_bgcolor="#f8fafc",
-        xaxis={"title": "Cường độ", "range": [0, 255], "fixedrange": True},
-        yaxis={"title": "Số pixel", "fixedrange": True},
+        font={"size": 15},
+        xaxis={
+            "title": "Cường độ",
+            "range": [0, 255],
+            "fixedrange": True,
+            "tickfont": {"size": 14},
+        },
+        yaxis={
+            "title": "Số pixel",
+            "fixedrange": True,
+            "tickfont": {"size": 14},
+        },
         showlegend=mode != "Grayscale" and image.ndim == 3,
         legend={"orientation": "h", "y": 1.15},
     )
     return figure
 
 
-def gamma_curve_figure(gamma: float) -> go.Figure:
+def gamma_curve_figure(
+    gamma: float, input_intensity: int | None = None
+) -> go.Figure:
     """Plot the current input-output intensity mapping."""
     x = np.arange(256, dtype=np.float32)
     y = 255.0 * np.power(x / 255.0, gamma)
@@ -64,6 +76,21 @@ def gamma_curve_figure(gamma: float) -> go.Figure:
     figure.add_trace(
         go.Scatter(x=x, y=y, name=f"γ = {gamma:.2f}", line={"color": "#e85d04", "width": 4})
     )
+    if input_intensity is not None:
+        output_intensity = 255.0 * (input_intensity / 255.0) ** gamma
+        figure.add_trace(
+            go.Scatter(
+                x=[input_intensity],
+                y=[output_intensity],
+                name=f"{input_intensity} → {output_intensity:.1f}",
+                mode="markers",
+                marker={
+                    "size": 13,
+                    "color": "#dc2626",
+                    "line": {"color": "white", "width": 2},
+                },
+            )
+        )
     figure.update_layout(
         title={"text": "Đường cong ánh xạ", "x": 0.02, "font": {"size": 19}},
         height=360,
@@ -72,7 +99,7 @@ def gamma_curve_figure(gamma: float) -> go.Figure:
         yaxis={"title": "I_out", "range": [0, 255], "fixedrange": True},
         plot_bgcolor="#f8fafc",
         paper_bgcolor="white",
+        font={"size": 15},
         legend={"orientation": "h", "y": 1.14},
     )
     return figure
-

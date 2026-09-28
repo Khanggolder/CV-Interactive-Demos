@@ -49,7 +49,11 @@ class StreamlitAppTests(unittest.TestCase):
         self.assert_clean()
         self.app.radio(key="fourier_filter").set_value("Ideal Low-pass").run()
         self.assert_clean()
+        self.app.checkbox(key="fourier_reveal").set_value(True).run()
+        self.assert_clean()
         self.app.radio(key="fourier_filter").set_value("Ideal High-pass").run()
+        self.assert_clean()
+        self.app.checkbox(key="fourier_reveal").set_value(True).run()
         self.assert_clean()
 
         self.navigate("6. Convolution Kernels")

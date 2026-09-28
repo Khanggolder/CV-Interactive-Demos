@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
-import plotly.graph_objects as go
 import streamlit as st
 from PIL import UnidentifiedImageError
 
@@ -17,6 +16,7 @@ from utils.fourier import (
     linear_magnitude_spectrum,
     magnitude_spectrum,
     reconstruct_image,
+    reconstruction_for_display,
 )
 from utils.image_ops import (
     adjust_brightness_contrast,
@@ -24,6 +24,7 @@ from utils.image_ops import (
     equalize_histogram,
     gamma_correct,
     load_rgb_image,
+    mark_pixel_and_patch,
     to_gray,
 )
 from utils.visualization import PLOT_CONFIG, gamma_curve_figure, histogram_figure
@@ -31,13 +32,25 @@ from utils.visualization import PLOT_CONFIG, gamma_curve_figure, histogram_figur
 
 ROOT = Path(__file__).resolve().parent
 SAMPLE_DIR = ROOT / "assets" / "samples"
-SAMPLES = {
-    "Ảnh tối": "low_light.png",
-    "Ảnh sáng": "bright.png",
-    "Tương phản thấp": "low_contrast.png",
-    "Tương phản cao": "high_contrast.png",
-    "Nhiều texture / tần số": "texture.png",
-    "Cạnh rõ": "clear_edges.png",
+SAMPLES: dict[str, tuple[str, str]] = {
+    "Ảnh tối": ("low_light.png", "Quan sát histogram lệch trái và thử gamma < 1."),
+    "Ảnh sáng": ("bright.png", "Quan sát histogram lệch phải và vùng bị clip sáng."),
+    "Tương phản thấp": (
+        "low_contrast.png",
+        "Histogram hẹp; phù hợp Equalization và CLAHE.",
+    ),
+    "Tương phản cao": (
+        "high_contrast.png",
+        "Histogram trải rộng, nhiều vùng sáng–tối tách biệt.",
+    ),
+    "Nhiều texture / tần số": (
+        "texture.png",
+        "Phổ Fourier giàu thành phần cao tần.",
+    ),
+    "Cạnh rõ": (
+        "clear_edges.png",
+        "Quan sát high-pass, Sobel và kernel phát hiện cạnh.",
+    ),
 }
 
 st.set_page_config(
@@ -91,7 +104,9 @@ def image_source() -> tuple[np.ndarray, str]:
         st.sidebar.info("Chưa có file — đang dùng ảnh mẫu.")
 
     selected = st.sidebar.selectbox("Chọn ảnh mẫu", tuple(SAMPLES), key="sample_name")
-    sample_path = SAMPLE_DIR / SAMPLES[selected]
+    filename, teaching_purpose = SAMPLES[selected]
+    st.sidebar.caption(f"Mục đích demo: {teaching_purpose}")
+    sample_path = SAMPLE_DIR / filename
     if not sample_path.exists():
         st.error("Thiếu ảnh mẫu. Chạy `python scripts/generate_samples.py`.")
         st.stop()
@@ -120,6 +135,10 @@ def set_gamma(value: float) -> None:
     st.session_state.gamma_value = value
 
 
+def hide_fourier_result() -> None:
+    st.session_state.fourier_reveal = False
+
+
 def pixel_explorer(image_rgb: np.ndarray) -> None:
     page_intro("1 · Pixel Explorer", "Ảnh số là một ma trận các giá trị pixel.")
     mode = st.radio("Biểu diễn", ("RGB", "Grayscale"), horizontal=True, key="pixel_mode")
@@ -130,7 +149,7 @@ def pixel_explorer(image_rgb: np.ndarray) -> None:
     left, right = st.columns([1.55, 1], gap="large")
     with left:
         section_label("1 · INPUT — ORIGINAL IMAGE")
-        show_image(image, mode)
+        image_slot = st.empty()
     with right:
         section_label("2 · PIXEL DATA")
         c1, c2 = st.columns(2)
@@ -159,6 +178,13 @@ def pixel_explorer(image_rgb: np.ndarray) -> None:
     y0, y1 = max(0, y - radius), min(height, y + radius + 1)
     x0, x1 = max(0, x - radius), min(width, x + radius + 1)
     patch = image[y0:y1, x0:x1]
+    marked_image = mark_pixel_and_patch(image, x, y, radius)
+    image_slot.image(
+        marked_image,
+        caption=f"{mode} · dấu đỏ: pixel ({x}, {y}) · khung vàng: patch",
+        width="stretch",
+        clamp=True,
+    )
     patch_image, patch_values = st.columns([1, 1.5], gap="large")
     with patch_image:
         section_label("4 · PATCH QUANH PIXEL")
@@ -215,7 +241,26 @@ def brightness_contrast(image_rgb: np.ndarray) -> None:
     with after:
         show_image(result, "RESULT")
 
-    section_label("3 · INTERMEDIATE EVIDENCE — HISTOGRAM")
+    section_label("3 · INTERMEDIATE STEP — ONE PIXEL")
+    example_control, example_math = st.columns([1, 2], gap="large")
+    sample_intensity = example_control.slider(
+        "Pixel input I_in", 0, 255, 100, key="bc_sample_intensity"
+    )
+    raw_value = alpha * sample_intensity + beta
+    clipped_value = float(np.clip(raw_value, 0, 255))
+    quantized_value = int(clipped_value)
+    example_math.markdown(
+        f"""
+        <div class="flow-card" style="min-height: 90px">
+          <div class="flow-label">TÍNH TRÊN MỘT PIXEL</div>
+          <div class="formula">I<sub>out</sub> = {alpha:.2f} × {sample_intensity} {beta:+d}
+          = {raw_value:.1f} → clip = {clipped_value:.1f} → uint8 = {quantized_value}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    section_label("4 · INTERMEDIATE EVIDENCE — HISTOGRAM")
     h1, h2 = st.columns(2, gap="large")
     h1.plotly_chart(
         histogram_figure(image, "Grayscale", "Histogram Before"),
@@ -226,19 +271,39 @@ def brightness_contrast(image_rgb: np.ndarray) -> None:
         config=PLOT_CONFIG,
     )
     messages = []
-    messages.append("α > 1: tăng contrast" if alpha > 1 else "0 < α < 1: giảm contrast" if alpha < 1 else "α = 1: giữ contrast")
-    messages.append("β > 0: sáng hơn" if beta > 0 else "β < 0: tối hơn" if beta < 0 else "β = 0: giữ brightness")
-    st.info("  ·  ".join(messages))
+    messages.append(
+        "α > 1: tăng contrast"
+        if alpha > 1
+        else "0 < α < 1: giảm contrast"
+        if alpha < 1
+        else "α = 1: giữ contrast"
+    )
+    messages.append(
+        "β > 0: sáng hơn"
+        if beta > 0
+        else "β < 0: tối hơn"
+        if beta < 0
+        else "β = 0: giữ brightness"
+    )
+    st.info(
+        "  ·  ".join(messages)
+        + "  ·  Công thức được áp dụng độc lập lên từng pixel."
+    )
 
 
 def gamma_demo(image_rgb: np.ndarray) -> None:
     page_intro("3 · Gamma Correction", "Quan sát đồng thời ảnh và hàm ánh xạ phi tuyến.")
     section_label("1 · PARAMETER")
-    p1, p2, p3, spacer = st.columns([1, 1, 1, 3])
+    p1, p2, p3, _ = st.columns([1, 1, 1, 3])
     p1.button("γ = 0.5", on_click=set_gamma, args=(0.5,), width="stretch")
     p2.button("γ = 1.0", on_click=set_gamma, args=(1.0,), width="stretch")
     p3.button("γ = 2.0", on_click=set_gamma, args=(2.0,), width="stretch")
-    gamma = st.slider("γ", 0.1, 5.0, 1.0, 0.05, key="gamma_value")
+    gamma_control, intensity_control = st.columns(2, gap="large")
+    gamma = gamma_control.slider("γ", 0.1, 5.0, 1.0, 0.05, key="gamma_value")
+    sample_intensity = intensity_control.slider(
+        "Input intensity mẫu", 0, 255, 100, key="gamma_sample_intensity"
+    )
+    sample_output = 255.0 * (sample_intensity / 255.0) ** gamma
     result = gamma_correct(image_rgb, gamma)
 
     section_label("2 · INPUT → MAPPING → OUTPUT")
@@ -246,8 +311,14 @@ def gamma_demo(image_rgb: np.ndarray) -> None:
     with original:
         show_image(image_rgb, "ORIGINAL")
     with curve:
-        st.plotly_chart(gamma_curve_figure(gamma), config=PLOT_CONFIG)
+        st.plotly_chart(
+            gamma_curve_figure(gamma, sample_intensity), config=PLOT_CONFIG
+        )
         st.latex(rf"I_{{out}}=255\left(\frac{{I_{{in}}}}{{255}}\right)^{{{gamma:.2f}}}")
+        st.metric(
+            "Điểm đang đánh dấu: I_in → I_out",
+            f"{sample_intensity} → {sample_output:.1f}",
+        )
     with output:
         show_image(result, "RESULT")
 
@@ -284,7 +355,14 @@ def histogram_demo(image_rgb: np.ndarray) -> None:
     else:
         processed = image_rgb.copy()
 
-    section_label("2 · INPUT → HISTOGRAM → OUTPUT → NEW HISTOGRAM")
+    process_description = {
+        "Original": "Không biến đổi — dùng làm mốc so sánh.",
+        "Histogram Equalization": "Một ánh xạ CDF chung được áp dụng lên toàn ảnh.",
+        "CLAHE": f"Chia ảnh thành ô {tile_size}×{tile_size}, giới hạn khuếch đại ở {clip_limit:.1f}.",
+    }[operation]
+    st.info(f"PROCESSING · {operation}: {process_description}")
+
+    section_label("2 · INPUT → HISTOGRAM → PROCESSING → OUTPUT → NEW HISTOGRAM")
     mode = "RGB" if hist_mode == "R / G / B" else "Grayscale"
     a, b, c, d = st.columns([1, 1.15, 1, 1.15], gap="medium")
     with a:
@@ -327,22 +405,60 @@ def fourier_demo(image_rgb: np.ndarray) -> None:
     with b:
         show_image(raw_spectrum, "2 · FFT (DC ở góc)")
     with c:
-        show_image(shifted_linear, "3 · FFTSHIFT (DC vào giữa)")
+        show_image(shifted_linear, "3 · FFTSHIFT |F_shift| (linear)")
     with d:
-        show_image(shifted_spectrum, "4 · LOG MAGNITUDE")
-    st.code(
-        "F = np.fft.fft2(image)\nF_shift = np.fft.fftshift(F)\nspectrum = np.log1p(np.abs(F_shift))",
-        language="python",
-    )
+        show_image(shifted_spectrum, "4 · LOG MAGNITUDE (display)")
+    with st.expander("Xem ba dòng NumPy của pipeline"):
+        st.code(
+            "F = np.fft.fft2(image)\nF_shift = np.fft.fftshift(F)\nspectrum = np.log1p(np.abs(F_shift))",
+            language="python",
+        )
 
     section_label("2 · PARAMETER — FREQUENCY FILTER")
     control1, control2 = st.columns([1.2, 2])
     filter_type = control1.radio(
-        "Filter", ("None", "Ideal Low-pass", "Ideal High-pass"), key="fourier_filter"
+        "Filter",
+        ("None", "Ideal Low-pass", "Ideal High-pass"),
+        key="fourier_filter",
+        on_change=hide_fourier_result,
     )
     max_radius = max(1, min(gray.shape) // 2)
     default_radius = max(1, min(50, max_radius // 3))
-    radius = control2.slider("Radius / cutoff frequency", 1, max_radius, default_radius)
+    radius = control2.slider(
+        "Radius / cutoff frequency",
+        1,
+        max_radius,
+        default_radius,
+        key="fourier_radius",
+        disabled=filter_type == "None",
+        on_change=hide_fourier_result,
+    )
+
+    section_label("3 · DỰ ĐOÁN TRƯỚC KHI XEM KẾT QUẢ")
+    if filter_type == "Ideal High-pass":
+        question = "Nếu tăng cutoff radius, ảnh tái tạo sẽ thay đổi thế nào?"
+        answer = (
+            "Radius lớn hơn che vùng trung tâm lớn hơn → bỏ thêm tần số thấp "
+            "→ ít cấu trúc mượt, kết quả thiên về cạnh/texture hơn."
+        )
+    elif filter_type == "Ideal Low-pass":
+        question = "Nếu giảm cutoff radius, ảnh tái tạo sẽ thay đổi thế nào?"
+        answer = "Cutoff nhỏ hơn giữ ít tần số hơn → mất thêm chi tiết cao tần → ảnh mờ hơn."
+    else:
+        question = "Mask toàn trắng sẽ làm thay đổi ảnh tái tạo hay không?"
+        answer = (
+            "Không. Mọi hệ số Fourier đều được giữ lại nên IFFT tái tạo ảnh "
+            "ban đầu, sai khác chỉ ở mức làm tròn số."
+        )
+    st.markdown(f'<div class="note"><b>{question}</b></div>', unsafe_allow_html=True)
+    reveal = st.checkbox(
+        "Đã dự đoán — hiển thị mask và kết quả",
+        key="fourier_reveal",
+    )
+    if not reveal:
+        st.caption("Kết quả đang được ẩn để giảng viên có thể dừng lại và hỏi lớp.")
+        return
+
     if filter_type == "Ideal Low-pass":
         mask = create_lowpass_mask(gray.shape, radius)
     elif filter_type == "Ideal High-pass":
@@ -352,22 +468,40 @@ def fourier_demo(image_rgb: np.ndarray) -> None:
 
     masked = apply_frequency_mask(shifted, mask)
     filtered_spectrum = magnitude_spectrum(masked)
-    reconstructed = gray.copy() if filter_type == "None" else reconstruct_image(masked)
+    reconstructed = reconstruct_image(masked)
+    signed_display = filter_type == "Ideal High-pass"
+    reconstructed_display = reconstruction_for_display(
+        reconstructed, signed=signed_display
+    )
+    reconstruction_caption = (
+        "IFFT DISPLAY · signed: 0 → xám giữa"
+        if signed_display
+        else "RECONSTRUCTED · chỉ clip [0,255]"
+    )
 
-    section_label("3 · INPUT → SPECTRUM → MASK → MODIFIED SPECTRUM → IFFT")
-    f1, f2, f3, f4, f5 = st.columns(5, gap="small")
+    section_label("4 · INPUT → SPECTRUM → MASK → MODIFIED SPECTRUM → IFFT")
+    f1, f2, f3 = st.columns(3, gap="medium")
     with f1:
-        show_image(gray, "ORIGINAL")
+        show_image(gray, "1 · SPATIAL IMAGE")
     with f2:
-        show_image(shifted_spectrum, "ORIGINAL SPECTRUM")
+        show_image(shifted_spectrum, "2 · ORIGINAL SPECTRUM")
     with f3:
-        show_image((mask * 255).astype(np.uint8), "FREQUENCY MASK")
+        show_image((mask * 255).astype(np.uint8), "3 · FREQUENCY MASK")
+    f4, f5 = st.columns(2, gap="large")
     with f4:
-        show_image(filtered_spectrum, "FILTERED SPECTRUM")
+        show_image(filtered_spectrum, "4 · MASKED SPECTRUM")
     with f5:
-        show_image(reconstructed, "RECONSTRUCTED")
+        show_image(reconstructed_display, f"5 · {reconstruction_caption}")
+    st.caption(
+        f"IFFT thật: min = {reconstructed.min():.2f}, max = {reconstructed.max():.2f}. "
+        + (
+            "Ảnh high-pass dùng ánh xạ đối xứng chỉ để hiển thị dấu; dữ liệu IFFT không bị normalize."
+            if signed_display
+            else "Không min–max normalize; chỉ clip về miền hiển thị 8-bit."
+        )
+    )
 
-    section_label("4 · WHAT CHANGED?")
+    section_label("5 · WHAT CHANGED?")
     if filter_type == "Ideal Low-pass":
         st.info("Giữ vùng gần tâm → giữ tần số thấp → ảnh mượt hơn và mất chi tiết. Cutoff nhỏ hơn làm ảnh mờ hơn.")
     elif filter_type == "Ideal High-pass":
@@ -375,14 +509,6 @@ def fourier_demo(image_rgb: np.ndarray) -> None:
     else:
         st.info("Mask toàn trắng giữ mọi tần số → ảnh tái tạo không đổi.")
 
-    section_label("5 · TRY TO PREDICT")
-    if filter_type == "Ideal High-pass":
-        question = "Nếu tăng cutoff radius, ảnh tái tạo sẽ thay đổi thế nào?"
-        answer = "Radius lớn hơn che một vùng trung tâm lớn hơn → bỏ thêm tần số thấp → ít cấu trúc mượt, kết quả thiên về cạnh/texture hơn."
-    else:
-        question = "Nếu giảm cutoff radius của low-pass, ảnh tái tạo sẽ thay đổi thế nào?"
-        answer = "Cutoff nhỏ hơn giữ ít tần số hơn → mất thêm chi tiết cao tần → ảnh mờ hơn."
-    st.markdown(f'<div class="note"><b>{question}</b></div>', unsafe_allow_html=True)
     with st.expander("Show explanation"):
         st.write(answer)
 

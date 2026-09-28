@@ -32,10 +32,11 @@ deactivate
 - `assets/samples/`: sáu ảnh mẫu nhỏ cho từng mục đích demo.
 - `scripts/generate_samples.py`: tái tạo bộ ảnh mẫu mà không tải dataset.
 - `tests/test_ops.py`: kiểm tra xử lý ảnh grayscale/RGB và Fourier.
+- `tests/test_app.py`: render và tương tác qua toàn bộ sáu trang Streamlit.
 
 ## Teaching flow
 
 Pixel → Brightness/Contrast → Gamma → Histogram → Fourier → Convolution Demo
 
 Ở mỗi phần, dừng tại bước trung gian và yêu cầu sinh viên dự đoán kết quả trước khi tiếp tục.
-
+Trong trang Fourier, kết quả lọc được ẩn mặc định cho tới khi chọn **Đã dự đoán**.
