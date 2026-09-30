@@ -97,6 +97,8 @@ def gamma_curve_figure(
                 y=[output_intensity],
                 name=f"{input_intensity} → {output_intensity:.1f}",
                 mode="markers",
+                showlegend=False,
+                hovertemplate="I_in = %{x:.0f}<br>I_out = %{y:.1f}<extra></extra>",
                 marker={
                     "size": 13,
                     "color": "#dc2626",
@@ -107,7 +109,7 @@ def gamma_curve_figure(
     figure.update_layout(
         title={"text": "Đường cong ánh xạ", "x": 0.02, "font": {"size": 19}},
         height=360,
-        margin={"l": 50, "r": 20, "t": 48, "b": 45},
+        margin={"l": 50, "r": 20, "t": 72, "b": 45},
         template="plotly_white",
         xaxis={
             "title": "I_in",
@@ -126,6 +128,12 @@ def gamma_curve_figure(
         plot_bgcolor="#f8fafc",
         paper_bgcolor="white",
         font={"size": 15, "color": "#111827"},
-        legend={"orientation": "h", "y": 1.14},
+        legend={
+            "orientation": "h",
+            "x": 1,
+            "y": 1.3,
+            "xanchor": "right",
+            "yanchor": "bottom",
+        },
     )
     return figure
