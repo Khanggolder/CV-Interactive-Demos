@@ -31,6 +31,10 @@ class StreamlitAppTests(unittest.TestCase):
         self.app.slider(key="bc_alpha").set_value(0.1)
         self.app.slider(key="bc_beta").set_value(-100).run()
         self.assert_clean()
+        self.app.button[0].click().run()
+        self.assert_clean()
+        self.assertEqual(self.app.slider(key="bc_alpha").value, 1.0)
+        self.assertEqual(self.app.slider(key="bc_beta").value, 0)
 
         self.navigate("3. Gamma")
         self.assertEqual(

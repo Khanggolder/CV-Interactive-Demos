@@ -33,6 +33,7 @@ from utils.visualization import PLOT_CONFIG, gamma_curve_figure, histogram_figur
 
 ROOT = Path(__file__).resolve().parent
 SAMPLE_DIR = ROOT / "assets" / "samples"
+SLIDING_WINDOW_GIF = SAMPLE_DIR / "SlidingWindow.gif"
 SAMPLES: dict[str, tuple[str, str]] = {
     "Ảnh tối": ("low_light.png", "Quan sát histogram lệch trái và thử gamma < 1."),
     "Ảnh sáng": ("bright.png", "Quan sát histogram lệch phải và vùng bị clip sáng."),
@@ -64,24 +65,245 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-      .block-container {padding-top: 1.25rem; padding-bottom: 2rem; max-width: 1500px;}
-      html, body, [class*="css"] {font-size: 17px;}
-      h1 {font-size: 2.25rem !important; color: #123b5d; margin-bottom: .25rem !important;}
-      h2 {font-size: 1.55rem !important; color: #155e75;}
-      h3 {font-size: 1.15rem !important; letter-spacing: .035em; text-transform: uppercase; color: #475569;}
-      [data-testid="stMetricValue"] {font-size: 1.55rem;}
-      .flow-card {background: #f0f7fb; border: 1px solid #cbdde8; border-radius: 12px;
-                  padding: 1rem; min-height: 150px; display: flex; flex-direction: column;
-                  align-items: center; justify-content: center; text-align: center;}
-      .flow-label {font-weight: 800; color: #155e75; letter-spacing: .07em; font-size: .82rem;}
-      .formula {font-size: 1.32rem; font-weight: 700; color: #c2410c; margin: .8rem 0;}
-      .note {background: #fff7ed; border-left: 5px solid #f97316; padding: .75rem 1rem;
-             border-radius: 6px; font-size: 1.02rem;}
-      .arrow {text-align: center; font-size: 1.8rem; color: #0e7490; font-weight: 800;}
-      [data-testid="stSidebar"] {min-width: 315px; max-width: 315px;}
-      [data-testid="stSidebar"] h2 {font-size: 1.15rem !important;}
-      div[data-testid="stImage"] img {border-radius: 8px;}
+      :root {
+        --cv-ink: #172033;
+        --cv-muted: #111827;
+        --cv-navy: #123b5d;
+        --cv-teal: #0f6b78;
+        --cv-orange: #e85d2a;
+        --cv-line: #d7e1e8;
+        --cv-surface: #ffffff;
+        --cv-canvas: #f5f8fa;
+      }
+
+      html, body, [class*="css"] {font-size: 17px; color: var(--cv-ink);}
+      .stApp {background: var(--cv-canvas);}
+      [data-testid="stHeader"] {background: rgba(245, 248, 250, .92);}
+      .block-container {padding-top: 3.25rem; padding-bottom: 3rem; max-width: 1500px;}
+
+      h1 {
+        font-size: 2.35rem !important;
+        line-height: 1.12 !important;
+        color: var(--cv-navy) !important;
+        letter-spacing: -.025em;
+        margin: .2rem 0 .35rem !important;
+      }
+      h2 {font-size: 1.55rem !important; color: var(--cv-teal) !important;}
+      h3 {
+        font-size: 1.05rem !important;
+        letter-spacing: .055em;
+        text-transform: uppercase;
+        color: var(--cv-navy) !important;
+        border-bottom: 2px solid var(--cv-line);
+        padding-bottom: .45rem;
+        margin-top: 1.7rem !important;
+      }
+      p, label, [data-testid="stCaptionContainer"] {color: var(--cv-muted);}
+      [data-testid="stCaptionContainer"],
+      [data-testid="stCaptionContainer"] * {
+        color: #111827 !important;
+        opacity: 1 !important;
+      }
+      figcaption, figcaption * {color: #111827 !important; opacity: 1 !important;}
+
+      .chapter-kicker {
+        display: inline-flex;
+        position: relative;
+        z-index: 2;
+        align-items: center;
+        border-radius: 999px;
+        background: #e3f2f4;
+        color: var(--cv-teal);
+        font-size: .75rem;
+        font-weight: 800;
+        letter-spacing: .11em;
+        padding: .35rem .65rem;
+      }
+      .pixel-section {
+        color: var(--cv-navy);
+        border-bottom: 2px solid var(--cv-line);
+        font-size: .93rem;
+        font-weight: 800;
+        letter-spacing: .035em;
+        margin: .7rem 0 .55rem;
+        padding-bottom: .32rem;
+        text-transform: uppercase;
+      }
+      .pixel-stats {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: .4rem;
+      }
+      .pixel-stat {
+        background: var(--cv-surface);
+        border: 1px solid var(--cv-line);
+        border-radius: 8px;
+        min-width: 0;
+        padding: .52rem .45rem;
+        text-align: center;
+      }
+      .pixel-stat-label {
+        color: #334155;
+        font-size: .66rem;
+        font-weight: 750;
+        line-height: 1.15;
+        min-height: 1.55rem;
+      }
+      .pixel-stat-value {
+        color: #111827;
+        font-size: 1rem;
+        font-weight: 800;
+        line-height: 1.25;
+        overflow-wrap: anywhere;
+      }
+      .pixel-note {
+        background: #fff4e9;
+        border-left: 4px solid var(--cv-orange);
+        border-radius: 6px;
+        color: #713515;
+        font-size: .84rem;
+        margin-top: .5rem;
+        padding: .45rem .65rem;
+      }
+      .pixel-value {
+        align-items: baseline;
+        background: #eef7f8;
+        border: 1px solid #bfdce0;
+        border-radius: 8px;
+        color: var(--cv-ink);
+        display: flex;
+        gap: .55rem;
+        justify-content: space-between;
+        margin-top: .15rem;
+        padding: .5rem .7rem;
+      }
+      .pixel-value-label {font-size: .76rem; font-weight: 750;}
+      .pixel-value-number {font-size: 1.08rem; font-weight: 800; white-space: nowrap;}
+      .sidebar-brand {
+        color: #ffffff;
+        background: linear-gradient(135deg, #123b5d 0%, #0f6b78 100%);
+        border-radius: 14px;
+        padding: 1rem 1.1rem;
+        margin: .35rem 0 1.25rem;
+        box-shadow: 0 8px 22px rgba(18, 59, 93, .18);
+      }
+      .sidebar-brand strong {display: block; font-size: 1.18rem; letter-spacing: .04em;}
+      .sidebar-brand span {display: block; margin-top: .15rem; color: #d8eef1; font-size: .82rem;}
+
+      [data-testid="stMetric"] {
+        background: var(--cv-surface);
+        border: 1px solid var(--cv-line);
+        border-radius: 10px;
+        padding: .7rem .8rem;
+        min-height: 88px;
+        box-shadow: 0 2px 8px rgba(18, 59, 93, .04);
+      }
+      [data-testid="stMetricLabel"] p {color: var(--cv-muted) !important; font-weight: 650;}
+      [data-testid="stMetricValue"] {font-size: 1.52rem; color: var(--cv-ink);}
+
+      .flow-card {
+        background: #eef7f8;
+        border: 1px solid #bfdce0;
+        border-radius: 12px;
+        color: var(--cv-ink);
+        padding: 1rem;
+        min-height: 150px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+      }
+      .flow-label {font-weight: 800; color: var(--cv-teal); letter-spacing: .07em; font-size: .82rem;}
+      .formula {font-size: 1.32rem; font-weight: 750; color: #b94319; margin: .8rem 0;}
+      .note {
+        background: #fff4e9;
+        border: 1px solid #fed7aa;
+        border-left: 5px solid var(--cv-orange);
+        color: #713515;
+        padding: .8rem 1rem;
+        border-radius: 8px;
+        font-size: 1.02rem;
+        line-height: 1.55;
+      }
+      .note b {color: #713515;}
+      .arrow {text-align: center; font-size: 1.8rem; color: var(--cv-teal); font-weight: 800;}
+
+      [data-testid="stSidebar"] {
+        min-width: 315px;
+        max-width: 315px;
+        background: #edf3f6;
+        border-right: 1px solid var(--cv-line);
+      }
+      [data-testid="stSidebar"] h2 {font-size: 1rem !important; letter-spacing: .065em; color: var(--cv-navy) !important;}
+      [data-testid="stSidebar"] hr {border-color: #c9d6de;}
+      [data-testid="stSidebar"] [role="radiogroup"] label {padding: .12rem 0;}
+      [data-testid="stSidebar"] [data-testid="stRadio"] label p,
+      [data-testid="stSidebar"] [data-testid="stSelectbox"] label p,
+      [data-testid="stSidebar"] [data-testid="stFileUploader"] label p {
+        color: #31455e !important;
+      }
+      [data-testid="stSidebar"] [role="radiogroup"] label,
+      [data-testid="stSidebar"] [role="radiogroup"] label span,
+      [data-testid="stSidebar"] [role="radiogroup"] label div {
+        color: #31455e !important;
+      }
+      [data-testid="stSidebar"] [data-testid="stCaptionContainer"],
+      [data-testid="stSidebar"] [data-testid="stCaptionContainer"] * {
+        color: #111827 !important;
+        opacity: 1 !important;
+      }
+
+      div[data-testid="stImage"] {
+        background: var(--cv-surface);
+        border: 1px solid var(--cv-line);
+        border-radius: 11px;
+        padding: .4rem;
+        box-shadow: 0 3px 12px rgba(18, 59, 93, .06);
+      }
+      div[data-testid="stImage"] img {border-radius: 7px;}
+      [data-testid="stAlert"] {border-radius: 10px; border: 1px solid #c9dce4;}
+      [data-testid="stDataFrame"] {border: 1px solid var(--cv-line); border-radius: 10px; overflow: hidden;}
+      .katex, .katex * {color: var(--cv-ink) !important;}
+      .stButton > button {
+        border-radius: 9px;
+        border: 1px solid #b8c8d4 !important;
+        background: #ffffff !important;
+        color: var(--cv-navy) !important;
+        font-weight: 700;
+      }
+      .stButton > button p {color: var(--cv-navy) !important;}
+      .stButton > button:hover {
+        border-color: var(--cv-teal) !important;
+        background: #eaf5f6 !important;
+      }
+      .stLinkButton > a {
+        border-radius: 9px;
+        border: 1px solid #c9481c !important;
+        background: var(--cv-orange) !important;
+        color: #ffffff !important;
+        font-weight: 700;
+      }
+      .stLinkButton > a p, .stLinkButton > a span {color: #ffffff !important;}
+      .stLinkButton > a:hover {background: #cc4b20 !important;}
+
+      @media (max-width: 900px) {
+        .block-container {padding-top: 2.75rem;}
+        h1 {font-size: 1.9rem !important;}
+        [data-testid="stSidebar"] {min-width: 285px; max-width: 285px;}
+        .pixel-stats {grid-template-columns: repeat(2, minmax(0, 1fr));}
+      }
     </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+st.sidebar.markdown(
+    """
+    <div class="sidebar-brand">
+      <strong>CV INTERACTIVE LAB</strong>
+      <span>Chapter 1 · Image Processing Foundations</span>
+    </div>
     """,
     unsafe_allow_html=True,
 )
@@ -115,6 +337,7 @@ def image_source() -> tuple[np.ndarray, str]:
 
 
 def page_intro(title: str, purpose: str) -> None:
+    st.markdown('<div class="chapter-kicker">CHAPTER 1 · INTERACTIVE LAB</div>', unsafe_allow_html=True)
     st.title(title)
     st.caption(purpose)
 
@@ -123,13 +346,17 @@ def section_label(text: str) -> None:
     st.markdown(f"### {text}")
 
 
+def pixel_section_label(text: str) -> None:
+    st.markdown(f'<div class="pixel-section">{text}</div>', unsafe_allow_html=True)
+
+
 def show_image(image: np.ndarray, caption: str) -> None:
     st.image(image, caption=caption, width="stretch", clamp=True)
 
 
 def reset_bc() -> None:
-    st.session_state.bc_alpha = 1.0
-    st.session_state.bc_beta = 0
+    st.session_state.pop("bc_alpha", None)
+    st.session_state.pop("bc_beta", None)
 
 
 def set_gamma(value: float) -> None:
@@ -156,38 +383,73 @@ def pixel_explorer(image_rgb: np.ndarray) -> None:
     height, width = image.shape[:2]
     channels = 3 if image.ndim == 3 else 1
 
-    left, right = st.columns([1.55, 1], gap="large")
+    left, right = st.columns([1, 1.05], gap="large")
     with left:
-        section_label("1 · INPUT — ORIGINAL IMAGE")
+        pixel_section_label("1 · INPUT — ORIGINAL IMAGE")
         image_slot = st.empty()
     with right:
-        section_label("2 · PIXEL DATA")
-        c1, c2 = st.columns(2)
-        c1.metric("Kích thước", f"{width} × {height}")
-        c2.metric("Số channel", channels)
-        c1.metric("dtype", str(image.dtype))
-        c2.metric("Min → Max", f"{image.min()} → {image.max()}")
-        st.metric("Mean intensity", f"{float(image.mean()):.1f}")
+        pixel_section_label("2 · PIXEL DATA")
+        stats = (
+            ("Kích thước", f"{width}×{height}"),
+            ("Channels", str(channels)),
+            ("dtype", str(image.dtype)),
+            ("Min → Max", f"{image.min()}→{image.max()}"),
+            ("Mean", f"{float(image.mean()):.1f}"),
+        )
+        stats_html = "".join(
+            f'<div class="pixel-stat"><div class="pixel-stat-label">{label}</div>'
+            f'<div class="pixel-stat-value">{value}</div></div>'
+            for label, value in stats
+        )
         st.markdown(
-            '<div class="note">Mỗi vị trí <b>(x, y)</b> trỏ đến một ô trong ma trận ảnh.</div>',
+            f'<div class="pixel-stats">{stats_html}</div>'
+            '<div class="pixel-note">Mỗi vị trí <b>(x, y)</b> trỏ đến một ô trong ma trận ảnh.</div>',
             unsafe_allow_html=True,
         )
 
-    section_label("3 · INSPECT PIXEL")
-    sx, sy, value_box = st.columns([1.1, 1.1, 1], gap="large")
-    x = sx.slider("x (cột)", 0, width - 1, width // 2)
-    y = sy.slider("y (hàng)", 0, height - 1, height // 2)
-    value = image[y, x]
-    if image.ndim == 3:
-        value_text = f"[{int(value[0])}, {int(value[1])}, {int(value[2])}]"
-        value_box.metric(f"Pixel({x}, {y}) = [R, G, B]", value_text)
-    else:
-        value_box.metric(f"Pixel({x}, {y}) = I", int(value))
+        pixel_section_label("3 · INSPECT PIXEL")
+        sx, sy = st.columns(2, gap="medium")
+        x = sx.slider("x (cột)", 0, width - 1, width // 2)
+        y = sy.slider("y (hàng)", 0, height - 1, height // 2)
+        value = image[y, x]
+        if image.ndim == 3:
+            value_label = f"Pixel({x}, {y}) = [R, G, B]"
+            value_text = f"[{int(value[0])}, {int(value[1])}, {int(value[2])}]"
+        else:
+            value_label = f"Pixel({x}, {y}) = I"
+            value_text = str(int(value))
+        st.markdown(
+            f'<div class="pixel-value"><span class="pixel-value-label">{value_label}</span>'
+            f'<span class="pixel-value-number">{value_text}</span></div>',
+            unsafe_allow_html=True,
+        )
 
-    radius = 3
-    y0, y1 = max(0, y - radius), min(height, y + radius + 1)
-    x0, x1 = max(0, x - radius), min(width, x + radius + 1)
-    patch = image[y0:y1, x0:x1]
+        radius = 3
+        y0, y1 = max(0, y - radius), min(height, y + radius + 1)
+        x0, x1 = max(0, x - radius), min(width, x + radius + 1)
+        patch = image[y0:y1, x0:x1]
+
+        patch_image, patch_values = st.columns([0.72, 1.28], gap="medium")
+        with patch_image:
+            pixel_section_label("4 · PATCH 7×7")
+            st.image(
+                patch,
+                caption=f"{patch.shape[1]} × {patch.shape[0]}",
+                width="stretch",
+                clamp=True,
+            )
+        with patch_values:
+            pixel_section_label("5 · MA TRẬN INTENSITY")
+            gray_patch = patch if patch.ndim == 2 else to_gray(patch)
+            st.dataframe(
+                gray_patch,
+                width="stretch",
+                hide_index=True,
+                height="auto",
+                row_height=32,
+            )
+            st.caption("RGB → intensity để bảng 7×7 dễ đọc.")
+
     marked_image = mark_pixel_and_patch(image, x, y, radius)
     image_slot.image(
         marked_image,
@@ -195,20 +457,6 @@ def pixel_explorer(image_rgb: np.ndarray) -> None:
         width="stretch",
         clamp=True,
     )
-    patch_image, patch_values = st.columns([1, 1.5], gap="large")
-    with patch_image:
-        section_label("4 · PATCH QUANH PIXEL")
-        st.image(patch, caption=f"Patch {patch.shape[1]} × {patch.shape[0]}", width=330, clamp=True)
-    with patch_values:
-        section_label("5 · NHỮNG CON SỐ BÊN TRONG")
-        gray_patch = patch if patch.ndim == 2 else to_gray(patch)
-        st.dataframe(
-            gray_patch,
-            width="stretch",
-            hide_index=True,
-            height=285,
-        )
-        st.caption("RGB được đổi sang intensity chỉ để bảng 7×7 dễ đọc.")
 
 
 def brightness_contrast(image_rgb: np.ndarray) -> None:
@@ -271,15 +519,50 @@ def brightness_contrast(image_rgb: np.ndarray) -> None:
     )
 
     section_label("4 · INTERMEDIATE EVIDENCE — HISTOGRAM")
+    before_gray = image if image.ndim == 2 else to_gray(image)
+    after_gray = result if result.ndim == 2 else to_gray(result)
+    before_mean = float(before_gray.mean())
+    after_mean = float(after_gray.mean())
+    before_std = float(before_gray.std())
+    after_std = float(after_gray.std())
+    clipped_percent = 100.0 * float(
+        np.count_nonzero((result == 0) | (result == 255))
+    ) / float(result.size)
+
     h1, h2 = st.columns(2, gap="large")
     h1.plotly_chart(
-        histogram_figure(image, "Grayscale", "Histogram Before"),
+        histogram_figure(
+            image,
+            "Grayscale",
+            f"Before · μ={before_mean:.1f}, σ={before_std:.1f}",
+            line_color="#123b5d",
+        ),
         config=PLOT_CONFIG,
+        theme=None,
     )
     h2.plotly_chart(
-        histogram_figure(result, "Grayscale", "Histogram After"),
+        histogram_figure(
+            result,
+            "Grayscale",
+            f"After · μ={after_mean:.1f}, σ={after_std:.1f}",
+            line_color="#e85d2a",
+        ),
         config=PLOT_CONFIG,
+        theme=None,
     )
+    evidence_mean, evidence_std, evidence_clip = st.columns(3)
+    evidence_mean.metric(
+        "Mean intensity · μ",
+        f"{before_mean:.1f} → {after_mean:.1f}",
+        f"{after_mean - before_mean:+.1f}",
+    )
+    evidence_std.metric(
+        "Độ phân tán · σ",
+        f"{before_std:.1f} → {after_std:.1f}",
+        f"{after_std - before_std:+.1f}",
+    )
+    evidence_clip.metric("Output tại 0 / 255", f"{clipped_percent:.1f}%")
+
     messages = []
     messages.append(
         "α > 1: tăng contrast"
@@ -295,10 +578,16 @@ def brightness_contrast(image_rgb: np.ndarray) -> None:
         if beta < 0
         else "β = 0: giữ brightness"
     )
-    st.info(
-        "  ·  ".join(messages)
-        + "  ·  Công thức được áp dụng độc lập lên từng pixel."
-    )
+    if np.array_equal(image, result):
+        st.info(
+            "Histogram chưa đổi vì phép biến đổi hiện tại là đồng nhất: "
+            "α = 1 và β = 0 nên I_out = I_in. Hãy thử β = +50 hoặc α = 1.5."
+        )
+    else:
+        st.info(
+            "  ·  ".join(messages)
+            + "  ·  Công thức được áp dụng độc lập lên từng pixel."
+        )
 
 
 def gamma_demo(image_rgb: np.ndarray) -> None:
@@ -338,7 +627,7 @@ def gamma_demo(image_rgb: np.ndarray) -> None:
         show_image(image, "ORIGINAL")
     with curve:
         st.plotly_chart(
-            gamma_curve_figure(gamma, sample_intensity), config=PLOT_CONFIG
+            gamma_curve_figure(gamma, sample_intensity), config=PLOT_CONFIG, theme=None
         )
         st.latex(rf"I_{{out}}=255\left(\frac{{I_{{in}}}}{{255}}\right)^{{{gamma:.2f}}}")
         st.metric(
@@ -351,8 +640,12 @@ def gamma_demo(image_rgb: np.ndarray) -> None:
     section_label("3 · WHAT CHANGED?")
     histogram_mode = "Grayscale" if mode == "Grayscale intensity" else "RGB"
     h1, h2 = st.columns(2, gap="large")
-    h1.plotly_chart(histogram_figure(image, histogram_mode, "Before"), config=PLOT_CONFIG)
-    h2.plotly_chart(histogram_figure(result, histogram_mode, "After"), config=PLOT_CONFIG)
+    h1.plotly_chart(
+        histogram_figure(image, histogram_mode, "Before"), config=PLOT_CONFIG, theme=None
+    )
+    h2.plotly_chart(
+        histogram_figure(result, histogram_mode, "After"), config=PLOT_CONFIG, theme=None
+    )
     if gamma < 1:
         st.info("γ < 1 → khuếch đại vùng tối → ảnh thường sáng hơn.")
     elif gamma > 1:
@@ -395,11 +688,15 @@ def histogram_demo(image_rgb: np.ndarray) -> None:
     with a:
         show_image(image_rgb, "ORIGINAL")
     with b:
-        st.plotly_chart(histogram_figure(image_rgb, mode, "Histogram"), config=PLOT_CONFIG)
+        st.plotly_chart(
+            histogram_figure(image_rgb, mode, "Histogram"), config=PLOT_CONFIG, theme=None
+        )
     with c:
         show_image(processed, operation.upper())
     with d:
-        st.plotly_chart(histogram_figure(processed, mode, "New Histogram"), config=PLOT_CONFIG)
+        st.plotly_chart(
+            histogram_figure(processed, mode, "New Histogram"), config=PLOT_CONFIG, theme=None
+        )
 
     section_label("3 · WHAT CHANGED?")
     st.markdown(
@@ -552,7 +849,7 @@ KERNELS: dict[str, tuple[list[list[str]], str, str]] = {
         "Làm mờ bằng trung bình đều.",
         "Cạnh bị chuyển tiếp dần khi cửa sổ trượt qua.",
     ),
-    "Gaussian Blur (slide)": (
+    "Gaussian Blur": (
         [["1/16", "2/16", "1/16"], ["2/16", "4/16", "2/16"], ["1/16", "2/16", "1/16"]],
         "Làm mờ có trọng số, σ ≈ 0.85.",
         "Pixel gần tâm đóng góp nhiều hơn; tổng kernel bằng 1.",
@@ -590,13 +887,25 @@ def kernel_text(matrix: list[list[str]]) -> str:
 
 
 def convolution_library() -> None:
-    page_intro("6 · Convolution Kernel Library", "Chọn kernel, đọc các hệ số, rồi thử trực tiếp trên Setosa.")
-    st.link_button(
-        "Mở Interactive convolution demo ↗",
-        "https://setosa.io/ev/image-kernels/",
-        type="primary",
-    )
-    st.caption("Kernel Gaussian 3×3 bên dưới dùng đúng hệ số trong Chapter 1.tex.")
+    intro, animation = st.columns([1.35, 1], gap="large", vertical_alignment="center")
+    with intro:
+        page_intro(
+            "6 · Convolution Kernel Library",
+            "Chọn kernel, đọc các hệ số, rồi thử trực tiếp trên Setosa.",
+        )
+        st.link_button(
+            "Mở Interactive convolution demo ↗",
+            "https://setosa.io/ev/image-kernels/",
+            type="primary",
+        )
+        st.caption("Kernel Gaussian 3×3 bên dưới dùng đúng hệ số trong Chapter 1.tex.")
+    with animation:
+        st.image(
+            str(SLIDING_WINDOW_GIF),
+            caption="Cửa sổ xử lý quét ảnh từ trái sang phải, trên xuống dưới.",
+            width="stretch",
+        )
+
     section_label("KERNEL 3 × 3")
     choice = st.selectbox("Chọn kernel", tuple(KERNELS))
     matrix, effect, observe = KERNELS[choice]
