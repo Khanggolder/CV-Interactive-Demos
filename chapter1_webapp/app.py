@@ -842,6 +842,10 @@ def noise_filtering_demo(image_rgb: np.ndarray) -> None:
         "Median là bộ lọc phi tuyến: output là trung vị của vùng lân cận, "
         "không phải tổng trọng số như convolution."
     )
+    st.caption(
+        "Với ảnh RGB trong demo, Gaussian và Median được áp dụng độc lập trên từng "
+        "kênh màu. Ví dụ neighborhood 3×3 bên dưới minh họa trên một kênh intensity."
+    )
 
     section_label("2 · INPUT → NOISY IMAGE")
     original_col, noisy_col = st.columns(2, gap="large")
@@ -1083,8 +1087,14 @@ def geometric_transform_demo(image_rgb: np.ndarray) -> None:
             f"R2 = {_format_pixel_value(details['r2'])}"
         )
         result_col.write(
-            f"P = (1-dy)R1 + dyR2 = **{_format_pixel_value(details['value'])}** · "
-            f"output uint8 thực tế = {_format_pixel_value(transformed[output_y, output_x], 0)}"
+            f"Bilinear lý thuyết: P = (1-dy)R1 + dyR2 = "
+            f"**{_format_pixel_value(details['value'])}** · "
+            f"OpenCV INTER_LINEAR thực tế (uint8) = "
+            f"{_format_pixel_value(transformed[output_y, output_x], 0)}"
+        )
+        result_col.caption(
+            "OpenCV INTER_LINEAR có thể lệch nhẹ vài mức intensity so với phép tính "
+            "float lý tưởng do cách lượng tử hệ số nội suy."
         )
         result_col.caption(
             "Các neighbor ngoài source domain được xem là 0 vì border mode đang là constant black."
