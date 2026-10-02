@@ -137,3 +137,48 @@ def gamma_curve_figure(
         },
     )
     return figure
+
+
+def intensity_profile_figure(
+    original: np.ndarray,
+    ideal: np.ndarray,
+    gaussian: np.ndarray,
+    row: int,
+) -> go.Figure:
+    """Plot one horizontal intensity profile without hiding IFFT overshoot."""
+    figure = go.Figure()
+    for values, name, color, dash in (
+        (original[row], "Original", "#123b5d", "solid"),
+        (ideal[row], "Ideal LP", "#e85d2a", "solid"),
+        (gaussian[row], "Gaussian LP", "#0f766e", "dash"),
+    ):
+        figure.add_trace(
+            go.Scatter(
+                x=np.arange(values.shape[0]),
+                y=values,
+                mode="lines",
+                name=name,
+                line={"color": color, "width": 2.5, "dash": dash},
+            )
+        )
+    figure.update_layout(
+        title={"text": f"Intensity profile tại hàng y = {row}", "x": 0.02},
+        height=360,
+        margin={"l": 55, "r": 20, "t": 65, "b": 45},
+        template="plotly_white",
+        paper_bgcolor="white",
+        plot_bgcolor="#f8fafc",
+        font={"size": 15, "color": "#111827"},
+        xaxis={
+            "title": "x (cột)",
+            "fixedrange": True,
+            "gridcolor": "#dbe4ea",
+        },
+        yaxis={
+            "title": "Intensity / IFFT value",
+            "fixedrange": True,
+            "gridcolor": "#dbe4ea",
+        },
+        legend={"orientation": "h", "y": 1.16},
+    )
+    return figure

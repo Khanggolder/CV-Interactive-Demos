@@ -12,12 +12,22 @@ from PIL import UnidentifiedImageError
 from utils.fourier import (
     apply_frequency_mask,
     compute_fft,
+    create_gaussian_lowpass_mask,
     create_highpass_mask,
     create_lowpass_mask,
     linear_magnitude_spectrum,
     magnitude_spectrum,
     reconstruct_image,
     reconstruction_for_display,
+)
+from utils.geometry import (
+    bilinear_sample_details,
+    build_transform_matrix,
+    centered_rotation_scale_matrix,
+    forward_mapping_occupancy,
+    inverse_source_coordinate,
+    nearest_sample,
+    warp_inverse,
 )
 from utils.image_ops import (
     adjust_brightness_contrast,
@@ -28,7 +38,18 @@ from utils.image_ops import (
     mark_pixel_and_patch,
     to_gray,
 )
-from utils.visualization import PLOT_CONFIG, gamma_curve_figure, histogram_figure
+from utils.noise import (
+    add_gaussian_noise,
+    add_salt_pepper_noise,
+    gaussian_filter,
+    median_filter,
+)
+from utils.visualization import (
+    PLOT_CONFIG,
+    gamma_curve_figure,
+    histogram_figure,
+    intensity_profile_figure,
+)
 
 
 ROOT = Path(__file__).resolve().parent
@@ -52,6 +73,14 @@ SAMPLES: dict[str, tuple[str, str]] = {
     "Cạnh rõ": (
         "clear_edges.png",
         "Quan sát high-pass, Sobel và kernel phát hiện cạnh.",
+    ),
+    "Ringing test pattern": (
+        "ringing_pattern.png",
+        "Ảnh tổng hợp dùng để quan sát Gibbs/ringing quanh cạnh sắc.",
+    ),
+    "Grid / interpolation pattern": (
+        "interpolation_grid.png",
+        "Ảnh tổng hợp dùng để quan sát biến đổi hình học và nội suy.",
     ),
 }
 
@@ -367,13 +396,33 @@ def hide_fourier_result() -> None:
     st.session_state.fourier_reveal = False
 
 
+def hide_noise_result() -> None:
+    st.session_state.noise_reveal = False
+
+
+def hide_geometry_result() -> None:
+    st.session_state.geometry_reveal = False
+
+
+def generate_new_noise() -> None:
+    st.session_state.noise_seed = st.session_state.get("noise_seed", 2025) + 1
+    hide_noise_result()
+
+
+def reset_reveal_for_new_image(prefix: str, image: np.ndarray) -> None:
+    """Hide one page's output only when its input pixels actually change."""
+    fingerprint = hashlib.sha256(image.tobytes()).hexdigest()
+    fingerprint_key = f"{prefix}_input_fingerprint"
+    reveal_key = f"{prefix}_reveal"
+    previous = st.session_state.get(fingerprint_key)
+    if previous is not None and previous != fingerprint:
+        st.session_state[reveal_key] = False
+    st.session_state[fingerprint_key] = fingerprint
+
+
 def reset_fourier_reveal_for_new_image(image: np.ndarray) -> None:
     """Hide Fourier output only when the input pixels actually change."""
-    fingerprint = hashlib.sha256(image.tobytes()).hexdigest()
-    previous = st.session_state.get("fourier_input_fingerprint")
-    if previous is not None and previous != fingerprint:
-        st.session_state.fourier_reveal = False
-    st.session_state.fourier_input_fingerprint = fingerprint
+    reset_reveal_for_new_image("fourier", image)
 
 
 def pixel_explorer(image_rgb: np.ndarray) -> None:
@@ -714,8 +763,358 @@ def histogram_demo(image_rgb: np.ndarray) -> None:
         st.info("CLAHE xử lý theo từng ô nhỏ và giới hạn khuếch đại để tăng contrast cục bộ.")
 
 
+def noise_filtering_demo(image_rgb: np.ndarray) -> None:
+    page_intro(
+        "5 · Noise & Filtering",
+        "So sánh loại nhiễu và lý do Gaussian/Median phản ứng khác nhau.",
+    )
+    reset_reveal_for_new_image("noise", image_rgb)
+    if "noise_seed" not in st.session_state:
+        st.session_state.noise_seed = 2025
+
+    section_label("1 · PARAMETER")
+    noise_type = st.radio(
+        "Noise",
+        ("Gaussian noise", "Salt-and-pepper noise"),
+        horizontal=True,
+        key="noise_type",
+        on_change=hide_noise_result,
+    )
+    noise_level, new_noise = st.columns([3, 1])
+    if noise_type == "Gaussian noise":
+        sigma_noise = noise_level.slider(
+            "σ_noise",
+            0.0,
+            60.0,
+            20.0,
+            1.0,
+            key="noise_sigma",
+            on_change=hide_noise_result,
+        )
+        noisy = add_gaussian_noise(image_rgb, sigma_noise, st.session_state.noise_seed)
+    else:
+        density = noise_level.slider(
+            "Mật độ impulse",
+            0.0,
+            0.20,
+            0.08,
+            0.01,
+            key="noise_density",
+            on_change=hide_noise_result,
+        )
+        noisy = add_salt_pepper_noise(
+            image_rgb, density, st.session_state.noise_seed
+        )
+    new_noise.button(
+        "Generate new noise",
+        on_click=generate_new_noise,
+        width="stretch",
+    )
+    st.caption(
+        f"Seed = {st.session_state.noise_seed}. Cùng seed + cùng tham số → cùng ảnh nhiễu."
+    )
+
+    gaussian_controls, median_controls = st.columns(2, gap="large")
+    gaussian_kernel = gaussian_controls.selectbox(
+        "Gaussian kernel size",
+        (3, 5, 7),
+        index=1,
+        key="noise_gaussian_kernel",
+        on_change=hide_noise_result,
+    )
+    gaussian_sigma = gaussian_controls.slider(
+        "Gaussian filter σ",
+        0.5,
+        4.0,
+        1.2,
+        0.1,
+        key="noise_filter_sigma",
+        on_change=hide_noise_result,
+    )
+    median_kernel = median_controls.selectbox(
+        "Median kernel size",
+        (3, 5, 7),
+        index=1,
+        key="noise_median_kernel",
+        on_change=hide_noise_result,
+    )
+    median_controls.caption(
+        "Median là bộ lọc phi tuyến: output là trung vị của vùng lân cận, "
+        "không phải tổng trọng số như convolution."
+    )
+
+    section_label("2 · INPUT → NOISY IMAGE")
+    original_col, noisy_col = st.columns(2, gap="large")
+    with original_col:
+        show_image(image_rgb, "ORIGINAL")
+    with noisy_col:
+        show_image(noisy, noise_type.upper())
+
+    section_label("3 · DỰ ĐOÁN TRƯỚC KHI XEM KẾT QUẢ")
+    if noise_type == "Salt-and-pepper noise":
+        question = "Bạn dự đoán Gaussian hay Median sẽ xử lý các pixel 0/255 tốt hơn?"
+    else:
+        question = "Filter nào sẽ làm ảnh mượt hơn? Điều gì xảy ra với cạnh?"
+    st.markdown(f'<div class="note"><b>{question}</b></div>', unsafe_allow_html=True)
+    reveal = st.checkbox(
+        "Đã dự đoán — hiển thị kết quả lọc",
+        key="noise_reveal",
+    )
+    if not reveal:
+        st.caption("Kết quả lọc đang được ẩn để lớp dự đoán trước.")
+        return
+
+    gaussian_result = gaussian_filter(noisy, gaussian_kernel, gaussian_sigma)
+    median_result = median_filter(noisy, median_kernel)
+    section_label("4 · FILTERED OUTPUT")
+    gaussian_col, median_col = st.columns(2, gap="large")
+    with gaussian_col:
+        show_image(
+            gaussian_result,
+            f"GAUSSIAN FILTER · {gaussian_kernel}×{gaussian_kernel}, σ={gaussian_sigma:.1f}",
+        )
+    with median_col:
+        show_image(median_result, f"MEDIAN FILTER · {median_kernel}×{median_kernel}")
+
+    section_label("5 · WHAT SHOULD WE NOTICE?")
+    if noise_type == "Gaussian noise":
+        st.info(
+            "Gaussian smoothing thường giảm nhiễu ngẫu nhiên nhưng đồng thời làm mờ cạnh. "
+            "Median cũng có thể giảm một phần noise, nhưng không phải lúc nào cũng tối ưu."
+        )
+    else:
+        st.info(
+            "Gaussian làm pixel cực trị lan sang láng giềng; Median thường loại impulse "
+            "outlier tốt hơn trong trường hợp salt-and-pepper thưa."
+        )
+
+    with st.expander("Vì sao Median chịu outlier tốt?"):
+        neighborhood = np.array(
+            [[82, 80, 255], [81, 79, 83], [80, 82, 81]], dtype=np.float32
+        )
+        gaussian_weights = np.array(
+            [[1, 2, 1], [2, 4, 2], [1, 2, 1]], dtype=np.float32
+        ) / 16.0
+        weighted = float(np.sum(neighborhood * gaussian_weights))
+        st.code(str(neighborhood.astype(int)), language=None)
+        st.write(
+            f"Mean = {neighborhood.mean():.1f} · Gaussian weighted = {weighted:.1f} · "
+            f"Median = {np.median(neighborhood):.1f}"
+        )
+        st.caption(
+            "Giá trị 255 kéo mean/tổng trọng số lên, trong khi median vẫn chọn giá trị "
+            "ở giữa sau khi sắp xếp."
+        )
+
+
+def _format_pixel_value(value: object, decimals: int = 1) -> str:
+    array = np.asarray(value)
+    if array.ndim == 0:
+        return f"{float(array):.{decimals}f}"
+    return "[" + ", ".join(f"{float(item):.{decimals}f}" for item in array) + "]"
+
+
+def geometric_transform_demo(image_rgb: np.ndarray) -> None:
+    page_intro(
+        "6 · Geometric Transform",
+        "Tọa độ pixel thay đổi; inverse warping tìm source cho từng output pixel.",
+    )
+    reset_reveal_for_new_image("geometry", image_rgb)
+    height, width = image_rgb.shape[:2]
+
+    st.info(
+        "QUY ƯỚC · x = column, y = row, gốc (0, 0) ở góc trên-trái. "
+        "Point operator giữ vị trí; geometric transform thay đổi tọa độ."
+    )
+    section_label("1 · PARAMETER")
+    operation_col, interpolation_col = st.columns(2, gap="large")
+    operation = operation_col.radio(
+        "Operation",
+        ("Rotate", "Scale", "Translate"),
+        horizontal=True,
+        key="geometry_operation",
+        on_change=hide_geometry_result,
+    )
+    interpolation = interpolation_col.radio(
+        "Interpolation",
+        ("Nearest Neighbor", "Bilinear"),
+        horizontal=True,
+        key="geometry_interpolation",
+        on_change=hide_geometry_result,
+    )
+
+    if operation == "Rotate":
+        angle = st.slider(
+            "Góc quay quanh tâm (degree)",
+            -180,
+            180,
+            25,
+            1,
+            key="geometry_angle",
+            on_change=hide_geometry_result,
+        )
+        matrix = build_transform_matrix(
+            (height, width), operation, angle_degrees=angle
+        )
+        prediction = "Pixel output có luôn ánh xạ đúng vào một pixel nguyên của ảnh gốc không?"
+        composition = "M = T_center_back · R · T_center"
+    elif operation == "Scale":
+        scale = st.slider(
+            "Tỉ lệ quanh tâm",
+            0.5,
+            2.0,
+            1.35,
+            0.05,
+            key="geometry_scale",
+            on_change=hide_geometry_result,
+        )
+        matrix = build_transform_matrix((height, width), operation, scale=scale)
+        prediction = "Nếu phóng to bằng nearest neighbor, điều gì xảy ra với các pixel?"
+        composition = "M = T_center_back · S · T_center"
+    else:
+        translation_x, translation_y = st.columns(2)
+        tx = translation_x.slider(
+            "tx · pixel theo chiều rộng",
+            -width,
+            width,
+            0,
+            1,
+            key="geometry_tx",
+            on_change=hide_geometry_result,
+        )
+        ty = translation_y.slider(
+            "ty · pixel theo chiều cao",
+            -height,
+            height,
+            0,
+            1,
+            key="geometry_ty",
+            on_change=hide_geometry_result,
+        )
+        matrix = build_transform_matrix((height, width), operation, tx=tx, ty=ty)
+        prediction = "Sau khi tịnh tiến, những vùng output nào không có source pixel?"
+        composition = "M = T(tx, ty)"
+
+    section_label("2 · INTERMEDIATE STEP — HOMOGENEOUS MATRIX")
+    matrix_col, mapping_col = st.columns([1, 1.35], gap="large")
+    with matrix_col:
+        st.dataframe(
+            np.round(matrix, 4),
+            width="stretch",
+            hide_index=True,
+            column_config={0: "x", 1: "y", 2: "translation"},
+        )
+        st.caption(f"Forward matrix thực sự dùng để warp · {composition}")
+    with mapping_col:
+        st.latex(
+            r"\begin{bmatrix}x'\\y'\\1\end{bmatrix}"
+            r"=M\begin{bmatrix}x\\y\\1\end{bmatrix},\qquad "
+            r"\begin{bmatrix}x\\y\\1\end{bmatrix}"
+            r"=M^{-1}\begin{bmatrix}x'\\y'\\1\end{bmatrix}"
+        )
+        st.caption(
+            "Full image dùng M⁻¹ để tạo source map rồi cv2.remap; output canvas giữ nguyên kích thước input."
+        )
+
+    section_label("3 · DỰ ĐOÁN TRƯỚC KHI XEM KẾT QUẢ")
+    st.markdown(f'<div class="note"><b>{prediction}</b></div>', unsafe_allow_html=True)
+    reveal = st.checkbox(
+        "Đã dự đoán — hiển thị kết quả transform",
+        key="geometry_reveal",
+    )
+    if not reveal:
+        st.caption("Ảnh output đang được ẩn để lớp dự đoán trước.")
+        return
+
+    transformed = warp_inverse(image_rgb, matrix, interpolation)
+    section_label("4 · OUTPUT — INVERSE WARPING")
+    original_col, transformed_col = st.columns(2, gap="large")
+    with original_col:
+        show_image(image_rgb, "ORIGINAL")
+    with transformed_col:
+        show_image(transformed, f"{operation.upper()} · {interpolation}")
+
+    section_label("5 · INSPECT ONE OUTPUT PIXEL")
+    coordinate_col, result_col = st.columns([1, 2], gap="large")
+    output_x = coordinate_col.slider("x' (output column)", 0, width - 1, width // 2)
+    output_y = coordinate_col.slider("y' (output row)", 0, height - 1, height // 2)
+    source_x, source_y = inverse_source_coordinate(
+        matrix, output_x, output_y
+    )
+    result_col.markdown(
+        f"**Output:** ({output_x}, {output_y})  → M⁻¹ →  "
+        f"**Source:** ({source_x:.3f}, {source_y:.3f})"
+    )
+
+    if interpolation == "Nearest Neighbor":
+        (nearest_x, nearest_y), value = nearest_sample(
+            image_rgb, source_x, source_y
+        )
+        if value is None:
+            result_col.warning(
+                f"Nearest source = ({nearest_x}, {nearest_y}) nằm ngoài ảnh → border đen."
+            )
+        else:
+            result_col.write(
+                f"Nearest source pixel = ({nearest_x}, {nearest_y}) · "
+                f"RGB = {_format_pixel_value(value, 0)}"
+            )
+            result_col.caption(
+                "Nearest lấy một pixel gần nhất; khi phóng to thường tạo khối pixel rõ."
+            )
+    else:
+        details = bilinear_sample_details(image_rgb, source_x, source_y)
+        rows = []
+        labels = ("Q11", "Q21", "Q12", "Q22")
+        for label, coordinate, value in zip(
+            labels, details["coordinates"], details["values"]
+        ):
+            rows.append(
+                {
+                    "Neighbor": label,
+                    "(x, y)": str(coordinate),
+                    "RGB": _format_pixel_value(value, 0),
+                }
+            )
+        result_col.dataframe(rows, width="stretch", hide_index=True)
+        result_col.write(
+            f"dx = {details['dx']:.3f}, dy = {details['dy']:.3f} · "
+            f"R1 = {_format_pixel_value(details['r1'])} · "
+            f"R2 = {_format_pixel_value(details['r2'])}"
+        )
+        result_col.write(
+            f"P = (1-dy)R1 + dyR2 = **{_format_pixel_value(details['value'])}** · "
+            f"output uint8 thực tế = {_format_pixel_value(transformed[output_y, output_x], 0)}"
+        )
+        result_col.caption(
+            "Các neighbor ngoài source domain được xem là 0 vì border mode đang là constant black."
+        )
+
+    with st.expander("Vì sao dùng inverse warping?"):
+        demo_shape = (32, 32)
+        demo_matrix = centered_rotation_scale_matrix(
+            demo_shape, angle_degrees=18.0, scale=1.25
+        )
+        forward_hits = forward_mapping_occupancy(demo_shape, demo_matrix)
+        inverse_coverage = warp_inverse(
+            np.full(demo_shape, 255, dtype=np.uint8),
+            demo_matrix,
+            "Nearest Neighbor",
+        )
+        forward_col, inverse_col = st.columns(2)
+        with forward_col:
+            show_image(forward_hits, "FORWARD · ô trắng đã được source chạm tới")
+        with inverse_col:
+            show_image(inverse_coverage, "INVERSE · mỗi destination tự tìm source")
+        st.caption(
+            "Forward source → destination có thể bỏ sót ô bên trong (hole). Inverse hỏi source "
+            "cho từng destination nên tránh loại hole do sampling này. Vùng đen ngoài biên vẫn "
+            "tồn tại khi destination ánh xạ ra ngoài source domain."
+        )
+
+
 def fourier_demo(image_rgb: np.ndarray) -> None:
-    page_intro("5 · Fourier Transform", "Từ miền không gian sang miền tần số, lọc, rồi tái tạo ảnh.")
+    page_intro("7 · Fourier Transform", "Từ miền không gian sang miền tần số, lọc, rồi tái tạo ảnh.")
     reset_fourier_reveal_for_new_image(image_rgb)
     gray = to_gray(image_rgb)
     fft, shifted = compute_fft(gray)
@@ -724,14 +1123,15 @@ def fourier_demo(image_rgb: np.ndarray) -> None:
     shifted_spectrum = magnitude_spectrum(shifted)
 
     section_label("1 · FFT PIPELINE")
-    a, b, c, d = st.columns(4, gap="medium")
-    with a:
+    first_left, first_right = st.columns(2, gap="large")
+    with first_left:
         show_image(gray, "1 · ORIGINAL GRAYSCALE")
-    with b:
+    with first_right:
         show_image(raw_spectrum, "2 · FFT (DC ở góc)")
-    with c:
+    second_left, second_right = st.columns(2, gap="large")
+    with second_left:
         show_image(shifted_linear, "3 · FFTSHIFT |F_shift| (linear)")
-    with d:
+    with second_right:
         show_image(shifted_spectrum, "4 · LOG MAGNITUDE (display)")
     with st.expander("Xem ba dòng NumPy của pipeline"):
         st.code(
@@ -740,41 +1140,87 @@ def fourier_demo(image_rgb: np.ndarray) -> None:
         )
 
     section_label("2 · PARAMETER — FREQUENCY FILTER")
-    control1, control2 = st.columns([1.2, 2])
-    filter_type = control1.radio(
+    filter_type = st.radio(
         "Filter",
-        ("None", "Ideal Low-pass", "Ideal High-pass"),
+        (
+            "None",
+            "Ideal Low-pass",
+            "Gaussian Low-pass",
+            "Ideal High-pass",
+            "Compare Ideal vs Gaussian",
+        ),
+        horizontal=True,
         key="fourier_filter",
         on_change=hide_fourier_result,
     )
     max_radius = max(1, min(gray.shape) // 2)
-    default_radius = max(1, min(50, max_radius // 3))
-    radius = control2.slider(
-        "Radius / cutoff frequency",
-        1,
-        max_radius,
-        default_radius,
-        key="fourier_radius",
-        disabled=filter_type == "None",
-        on_change=hide_fourier_result,
-    )
+    default_width = max(1, min(50, max_radius // 3))
+    radius = default_width
+    sigma_f = float(default_width)
+    if filter_type in ("Ideal Low-pass", "Ideal High-pass"):
+        radius = st.slider(
+            "Cutoff radius R",
+            1,
+            max_radius,
+            default_width,
+            key="fourier_radius",
+            on_change=hide_fourier_result,
+        )
+    elif filter_type == "Gaussian Low-pass":
+        sigma_f = st.slider(
+            "Gaussian frequency width σ_f",
+            1.0,
+            float(max_radius),
+            float(default_width),
+            1.0,
+            key="fourier_sigma",
+            on_change=hide_fourier_result,
+        )
+    elif filter_type == "Compare Ideal vs Gaussian":
+        ideal_control, gaussian_control = st.columns(2, gap="large")
+        radius = ideal_control.slider(
+            "Ideal cutoff R",
+            1,
+            max_radius,
+            default_width,
+            key="fourier_radius",
+            on_change=hide_fourier_result,
+        )
+        sigma_f = gaussian_control.slider(
+            "Gaussian σ_f",
+            1.0,
+            float(max_radius),
+            float(default_width),
+            1.0,
+            key="fourier_sigma",
+            on_change=hide_fourier_result,
+        )
+        st.caption(
+            "R và σ_f đều điều khiển độ rộng vùng tần số thấp, nhưng không phải cùng một định nghĩa cutoff."
+        )
 
     section_label("3 · DỰ ĐOÁN TRƯỚC KHI XEM KẾT QUẢ")
     if filter_type == "Ideal High-pass":
         question = "Nếu tăng cutoff radius, ảnh tái tạo sẽ thay đổi thế nào?"
         answer = (
             "Radius lớn hơn che vùng trung tâm lớn hơn → bỏ thêm tần số thấp "
-            "→ ít cấu trúc mượt, kết quả thiên về cạnh/texture hơn."
+            "→ kết quả thiên về cạnh/texture hơn."
         )
     elif filter_type == "Ideal Low-pass":
         question = "Nếu giảm cutoff radius, ảnh tái tạo sẽ thay đổi thế nào?"
         answer = "Cutoff nhỏ hơn giữ ít tần số hơn → mất thêm chi tiết cao tần → ảnh mờ hơn."
+    elif filter_type == "Gaussian Low-pass":
+        question = "Nếu giảm σ_f, ảnh tái tạo và cạnh sắc sẽ thay đổi thế nào?"
+        answer = "σ_f nhỏ hơn làm pass-band hẹp hơn → ảnh mượt hơn và cạnh chuyển tiếp rộng hơn."
+    elif filter_type == "Compare Ideal vs Gaussian":
+        question = "Với độ rộng gần nhau, Ideal và Gaussian khác gì quanh một cạnh sắc?"
+        answer = (
+            "Ideal có cutoff đột ngột nên dễ tạo dao động Gibbs/ringing. Gaussian chuyển tiếp "
+            "mượt nên thường giảm mạnh ringing do cutoff đột ngột."
+        )
     else:
         question = "Mask toàn trắng sẽ làm thay đổi ảnh tái tạo hay không?"
-        answer = (
-            "Không. Mọi hệ số Fourier đều được giữ lại nên IFFT tái tạo ảnh "
-            "ban đầu, sai khác chỉ ở mức làm tròn số."
-        )
+        answer = "Không; mọi hệ số Fourier được giữ lại, sai khác chỉ ở mức số học."
     st.markdown(f'<div class="note"><b>{question}</b></div>', unsafe_allow_html=True)
     reveal = st.checkbox(
         "Đã dự đoán — hiển thị mask và kết quả",
@@ -784,8 +1230,92 @@ def fourier_demo(image_rgb: np.ndarray) -> None:
         st.caption("Kết quả đang được ẩn để giảng viên có thể dừng lại và hỏi lớp.")
         return
 
+    if filter_type == "Compare Ideal vs Gaussian":
+        ideal_mask = create_lowpass_mask(gray.shape, radius)
+        gaussian_mask = create_gaussian_lowpass_mask(gray.shape, sigma_f)
+        ideal_masked = apply_frequency_mask(shifted, ideal_mask)
+        gaussian_masked = apply_frequency_mask(shifted, gaussian_mask)
+        ideal_reconstructed = reconstruct_image(ideal_masked)
+        gaussian_reconstructed = reconstruct_image(gaussian_masked)
+
+        section_label("4 · INPUT → ORIGINAL SPECTRUM → TWO FILTER BRANCHES")
+        input_col, spectrum_col = st.columns(2, gap="large")
+        with input_col:
+            show_image(gray, "INPUT · GRAYSCALE")
+        with spectrum_col:
+            show_image(shifted_spectrum, "ORIGINAL SPECTRUM · log display")
+
+        ideal_col, gaussian_col = st.columns(2, gap="large")
+        with ideal_col:
+            st.markdown("#### IDEAL LOW-PASS")
+            show_image((ideal_mask * 255).astype(np.uint8), f"IDEAL MASK · R={radius}")
+            show_image(magnitude_spectrum(ideal_masked), "IDEAL MASKED SPECTRUM")
+            show_image(
+                reconstruction_for_display(ideal_reconstructed),
+                "IDEAL IFFT · clip [0,255]",
+            )
+        with gaussian_col:
+            st.markdown("#### GAUSSIAN LOW-PASS")
+            show_image(
+                np.rint(gaussian_mask * 255).astype(np.uint8),
+                f"GAUSSIAN MASK · σ_f={sigma_f:.1f}",
+            )
+            show_image(magnitude_spectrum(gaussian_masked), "GAUSSIAN MASKED SPECTRUM")
+            show_image(
+                reconstruction_for_display(gaussian_reconstructed),
+                "GAUSSIAN IFFT · clip [0,255]",
+            )
+        st.caption(
+            f"IFFT thật · Ideal [{ideal_reconstructed.min():.2f}, {ideal_reconstructed.max():.2f}] "
+            f"· Gaussian [{gaussian_reconstructed.min():.2f}, {gaussian_reconstructed.max():.2f}]. "
+            "Không min–max normalize reconstruction."
+        )
+
+        section_label("5 · WHAT CHANGED?")
+        st.info(
+            "Ideal mask có biên cắt đột ngột nên dễ tạo ringing/Gibbs quanh cạnh sắc. "
+            "Gaussian mask không có discontinuity sắc như Ideal LP, nên giảm mạnh ringing "
+            "do cutoff đột ngột; mức quan sát còn phụ thuộc ảnh và tham số."
+        )
+        with st.expander("OPTIONAL · 1D INTENSITY PROFILE"):
+            profile_row = st.slider(
+                "Hàng ngang y",
+                0,
+                gray.shape[0] - 1,
+                gray.shape[0] // 2,
+                key="fourier_profile_row",
+            )
+            st.plotly_chart(
+                intensity_profile_figure(
+                    gray.astype(np.float32),
+                    ideal_reconstructed,
+                    gaussian_reconstructed,
+                    profile_row,
+                ),
+                config=PLOT_CONFIG,
+                theme=None,
+            )
+            edge_strength = float(
+                np.max(np.abs(np.diff(gray[profile_row].astype(np.float32))))
+            )
+            if edge_strength < 40:
+                st.warning(
+                    "Hàng này chưa có cạnh đủ sắc để kết luận về ringing. Hãy chọn hàng khác "
+                    "hoặc dùng sample Ringing test pattern."
+                )
+            else:
+                st.caption(
+                    "Quan sát dao động/overshoot gần vị trí cường độ đổi đột ngột; profile giữ "
+                    "giá trị IFFT thật nên có thể vượt [0,255]."
+                )
+        with st.expander("Show explanation"):
+            st.write(answer)
+        return
+
     if filter_type == "Ideal Low-pass":
         mask = create_lowpass_mask(gray.shape, radius)
+    elif filter_type == "Gaussian Low-pass":
+        mask = create_gaussian_lowpass_mask(gray.shape, sigma_f)
     elif filter_type == "Ideal High-pass":
         mask = create_highpass_mask(gray.shape, radius)
     else:
@@ -805,22 +1335,22 @@ def fourier_demo(image_rgb: np.ndarray) -> None:
     )
 
     section_label("4 · INPUT → SPECTRUM → MASK → MODIFIED SPECTRUM → IFFT")
-    f1, f2, f3 = st.columns(3, gap="medium")
-    with f1:
+    first, second, third = st.columns(3, gap="medium")
+    with first:
         show_image(gray, "1 · SPATIAL IMAGE")
-    with f2:
+    with second:
         show_image(shifted_spectrum, "2 · ORIGINAL SPECTRUM")
-    with f3:
-        show_image((mask * 255).astype(np.uint8), "3 · FREQUENCY MASK")
-    f4, f5 = st.columns(2, gap="large")
-    with f4:
+    with third:
+        show_image(np.rint(mask * 255).astype(np.uint8), "3 · FREQUENCY MASK")
+    fourth, fifth = st.columns(2, gap="large")
+    with fourth:
         show_image(filtered_spectrum, "4 · MASKED SPECTRUM")
-    with f5:
+    with fifth:
         show_image(reconstructed_display, f"5 · {reconstruction_caption}")
     st.caption(
         f"IFFT thật: min = {reconstructed.min():.2f}, max = {reconstructed.max():.2f}. "
         + (
-            "Ảnh high-pass dùng ánh xạ đối xứng chỉ để hiển thị dấu; dữ liệu IFFT không bị normalize."
+            "High-pass dùng ánh xạ đối xứng chỉ để hiển thị dấu; dữ liệu IFFT không bị normalize."
             if signed_display
             else "Không min–max normalize; chỉ clip về miền hiển thị 8-bit."
         )
@@ -828,9 +1358,11 @@ def fourier_demo(image_rgb: np.ndarray) -> None:
 
     section_label("5 · WHAT CHANGED?")
     if filter_type == "Ideal Low-pass":
-        st.info("Giữ vùng gần tâm → giữ tần số thấp → ảnh mượt hơn và mất chi tiết. Cutoff nhỏ hơn làm ảnh mờ hơn.")
+        st.info("Ideal LP giữ vùng tròn gần tâm; cutoff nhỏ hơn làm ảnh mờ hơn và biên mask vẫn cắt đột ngột.")
+    elif filter_type == "Gaussian Low-pass":
+        st.info("Gaussian LP giảm dần theo khoảng cách tới tâm; σ_f nhỏ hơn làm ảnh mượt hơn mà không tạo biên mask nhị phân.")
     elif filter_type == "Ideal High-pass":
-        st.info("Loại vùng gần tâm → giữ tần số cao → nhấn mạnh thay đổi nhanh, cạnh và texture. Radius lớn hơn loại nhiều cấu trúc chậm hơn.")
+        st.info("Loại vùng gần tâm → giữ tần số cao → nhấn mạnh thay đổi nhanh, cạnh và texture.")
     else:
         st.info("Mask toàn trắng giữ mọi tần số → ảnh tái tạo không đổi.")
 
@@ -890,7 +1422,7 @@ def convolution_library() -> None:
     intro, animation = st.columns([1.35, 1], gap="large", vertical_alignment="center")
     with intro:
         page_intro(
-            "6 · Convolution Kernel Library",
+            "8 · Convolution Kernel Library",
             "Chọn kernel, đọc các hệ số, rồi thử trực tiếp trên Setosa.",
         )
         st.link_button(
@@ -938,8 +1470,10 @@ page = st.sidebar.radio(
         "2. Brightness & Contrast",
         "3. Gamma",
         "4. Histogram",
-        "5. Fourier",
-        "6. Convolution Kernels",
+        "5. Noise & Filtering",
+        "6. Geometric Transform",
+        "7. Fourier",
+        "8. Convolution Kernels",
     ),
     label_visibility="collapsed",
     key="nav_page",
@@ -957,6 +1491,10 @@ elif page.startswith("3"):
 elif page.startswith("4"):
     histogram_demo(image_rgb)
 elif page.startswith("5"):
+    noise_filtering_demo(image_rgb)
+elif page.startswith("6"):
+    geometric_transform_demo(image_rgb)
+elif page.startswith("7"):
     fourier_demo(image_rgb)
 else:
     convolution_library()

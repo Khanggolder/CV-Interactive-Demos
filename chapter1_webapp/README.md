@@ -1,6 +1,6 @@
 # Chapter 1 Interactive CV Demo
 
-Ứng dụng Streamlit phục vụ giảng dạy trực tiếp Chương 1: từ pixel, toán tử điểm và histogram đến biến đổi Fourier và thư viện kernel tích chập.
+Ứng dụng Streamlit phục vụ giảng dạy trực tiếp Chương 1: từ pixel, toán tử điểm và histogram đến nhiễu, biến đổi hình học, Fourier và kernel tích chập.
 
 ## Setup on Windows
 
@@ -27,16 +27,18 @@ deactivate
 
 - `app.py`: giao diện, điều hướng và luồng giảng dạy.
 - `utils/image_ops.py`: toán tử điểm, cân bằng histogram và CLAHE.
-- `utils/fourier.py`: FFT, mask tần số và tái tạo ảnh.
-- `utils/visualization.py`: biểu đồ histogram và gamma bằng Plotly.
-- `assets/samples/`: sáu ảnh mẫu nhỏ cho từng mục đích demo.
+- `utils/noise.py`: Gaussian/salt-and-pepper noise và bộ lọc Gaussian/Median.
+- `utils/geometry.py`: ma trận đồng nhất, inverse mapping và nội suy.
+- `utils/fourier.py`: FFT, Ideal/Gaussian mask và tái tạo ảnh.
+- `utils/visualization.py`: biểu đồ histogram, gamma và intensity profile.
+- `assets/samples/`: ảnh mẫu nhỏ, gồm hai teaching pattern tổng hợp.
 - `scripts/generate_samples.py`: tái tạo bộ ảnh mẫu mà không tải dataset.
-- `tests/test_ops.py`: kiểm tra xử lý ảnh grayscale/RGB và Fourier.
-- `tests/test_app.py`: render và tương tác qua toàn bộ sáu trang Streamlit.
+- `tests/test_ops.py`: kiểm tra toán tử ảnh, noise, geometry và Fourier.
+- `tests/test_app.py`: render và tương tác qua toàn bộ tám trang Streamlit.
 
 ## Teaching flow
 
-Pixel → Brightness/Contrast → Gamma → Histogram → Fourier → Convolution Demo
+Pixel → Brightness/Contrast → Gamma → Histogram → Noise & Filtering → Geometric Transform → Fourier → Convolution Kernel Reference
 
 Ở mỗi phần, dừng tại bước trung gian và yêu cầu sinh viên dự đoán kết quả trước khi tiếp tục.
-Trong trang Fourier, kết quả lọc được ẩn mặc định cho tới khi chọn **Đã dự đoán**.
+Kết quả Noise, Geometry và Fourier được ẩn mặc định cho tới khi chọn **Đã dự đoán**.

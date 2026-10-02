@@ -42,6 +42,19 @@ def create_highpass_mask(shape: tuple[int, int], radius: int) -> np.ndarray:
     return 1.0 - create_lowpass_mask(shape, radius)
 
 
+def create_gaussian_lowpass_mask(
+    shape: tuple[int, int], sigma_f: float
+) -> np.ndarray:
+    """Create a centered, non-binary Gaussian low-pass frequency mask."""
+    if sigma_f <= 0:
+        raise ValueError("sigma_f must be positive")
+    rows, cols = shape
+    yy, xx = np.ogrid[:rows, :cols]
+    distance_squared = (yy - rows // 2) ** 2 + (xx - cols // 2) ** 2
+    mask = np.exp(-distance_squared / (2.0 * float(sigma_f) ** 2))
+    return mask.astype(np.float32)
+
+
 def apply_frequency_mask(
     shifted_fft: np.ndarray, mask: np.ndarray
 ) -> np.ndarray:
