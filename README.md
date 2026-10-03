@@ -13,8 +13,12 @@ Interactive demonstrations for:
 - Gamma Correction
 - Histogram
 - Histogram Equalization / CLAHE
+- Gaussian / salt-and-pepper noise
+- Gaussian / Median filtering
+- Rotate / Scale / Translate with inverse warping
+- Nearest / Bilinear interpolation
 - Fourier Transform
-- Frequency-domain filtering
+- Ideal / Gaussian frequency-domain filtering and ringing comparison
 - Convolution kernel reference
 
 Source: `chapter1_webapp/`
