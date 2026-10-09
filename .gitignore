@@ -43,3 +43,9 @@ htmlcov/
 
 # logs
 *.log
+
+# Manim render output
+media/
+**/media/
+.manim/
+**/.manim/
