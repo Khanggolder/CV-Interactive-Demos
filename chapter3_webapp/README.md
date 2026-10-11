@@ -125,7 +125,7 @@ Pop-Location
 
 Tests kiểm tra cả sáu module, gồm Hough Circle geometry/voting và LSD gradients, axial BFS, weighted-PCA, directed NFA, state invalidation, Guided/Lab/Presentation và module switching. Kết quả hiện tại: **175/175 passed** (139 baseline + 36 LSD).
 
-## Visual verification and screenshots
+## Visual verification
 
 1. Chạy app ở kích thước desktop và kiểm tra Guided Tutorial từ bước 1 đến 10.
 2. Ở bước 4, xác nhận các đoạn residual vuông góc với candidate và dải epsilon có cùng tỷ lệ x/y.
@@ -134,15 +134,13 @@ Tests kiểm tra cả sáu module, gồm Hough Circle geometry/voting và LSD gr
 5. Kiểm tra ở viewport hẹp: step indicator gọn một hàng và các nút Previous, Next, Reset vẫn dùng được.
 6. Bật Presentation Mode và xác nhận biểu đồ, marker, nhãn lớn hơn nhưng công thức/kết quả không đổi.
 
-Ảnh minh họa chọn lọc: [RANSAC Guided](docs/screenshots/final/ransac-guided.png), [TLS refit](docs/screenshots/final/ransac-tls.png) và [Hough Guided](docs/screenshots/final/hough-guided.png).
-
 ## Sobel conventions và cách chạy
 
 Trong sidebar chọn **Sobel Convolution**, rồi Guided hoặc Experiment Lab; bật **Presentation Mode** khi trình chiếu. Không thêm dependency: chạy `python -m streamlit run chapter3_webapp/app.py` từ repo root, và `python -m unittest discover -s tests` trong `chapter3_webapp/` bằng environment đã cài `requirements.txt`.
 
 Ảnh grayscale dùng số nguyên 0–255. Mask Gx `[-1,0,1];[-2,0,2];[-1,0,1]`, Gy `[-1,-2,-1];[0,0,0];[1,2,1]` được **áp trực tiếp theo cross-correlation**, không lật như convolution toán học. Hàng/y ảnh tăng xuống, cột/x tăng sang phải. `Gx=sum(P*Kx)`, `Gy=sum(P*Ky)`, `M=hypot(Gx,Gy)`, `θ=atan2(Gy,Gx)` theo tọa độ ảnh. Vector khi vẽ lên mặt phẳng y hướng lên là `(Gx,-Gy)`. Nếu M=0, θ **Undefined**. Response Gx/Gy có dấu, không clip 0–255; màu Plotly chỉ chuẩn hóa để nhìn và nhãn ô vẫn là giá trị thô. Chỉ tính center interior của patch 3×3, border hiển thị `—`, không zero-padding.
 
-Fixture mặc định 5×7 có 20 bên trái, 200 từ cột 4 trở đi; center `(2,3)` cho patch ba hàng `[20,20,200]`, Gx=720, Gy=0, M=720, θ=0°. Sáu preset deterministic: vertical, horizontal, diagonal, flat, reversed contrast, noisy edge fixed-seed. Gradient đo thay đổi intensity cục bộ, không chứng minh semantic boundary; noise/texture/corner có thể gây response và Sobel không có smoothing, non-maximum suppression hay hysteresis. [Ảnh Sobel Guided](docs/screenshots/final/sobel-guided.png).
+Fixture mặc định 5×7 có 20 bên trái, 200 từ cột 4 trở đi; center `(2,3)` cho patch ba hàng `[20,20,200]`, Gx=720, Gy=0, M=720, θ=0°. Sáu preset deterministic: vertical, horizontal, diagonal, flat, reversed contrast, noisy edge fixed-seed. Gradient đo thay đổi intensity cục bộ, không chứng minh semantic boundary; noise/texture/corner có thể gây response và Sobel không có smoothing, non-maximum suppression hay hysteresis.
 
 ## Canny conventions và cách học
 
@@ -154,7 +152,7 @@ Chọn **Canny Edge Detector** trong sidebar, sau đó **Guided Tutorial** hoặ
 - Double threshold áp trên **NMS_norm**, mặc định `low=0.10`, `high=0.35`, yêu cầu `0<low<high≤1`. Strong `≥high`; weak `low≤value<high`; zero background không được nhận. Hysteresis BFS **8-connected** bắt đầu từ mọi strong và chỉ lan qua weak; accepted weak vẫn mang lớp weak. Final map nhị phân; replay event cuối trùng batch map.
 - Replay giữ **thứ tự BFS đầy đủ**, nhưng Next/Previous nhảy qua những queue pop không phát hiện weak để hình thay đổi có ý nghĩa. Caption ghi số event thật; Run to completion vẫn xử lý toàn bộ. Đổi ảnh, σ hoặc threshold sẽ reset replay/reveal, đổi stage hay pixel không tính lại pipeline. Cache gồm image bytes, kích thước, σ, low/high tương ứng.
 
-Giới hạn: NMS 4 hướng có sai số lượng tử và tie plateau; 8-connectivity có thể nối nét không mong muốn; smoothing mạnh làm mất chi tiết; threshold cố định không phù hợp mọi ảnh. Đây là implementation giảng dạy bám scene, **không** thay toàn bộ bằng `cv2.Canny()`. [Ảnh Canny Guided](docs/screenshots/final/canny-guided.png).
+Giới hạn: NMS 4 hướng có sai số lượng tử và tie plateau; 8-connectivity có thể nối nét không mong muốn; smoothing mạnh làm mất chi tiết; threshold cố định không phù hợp mọi ảnh. Đây là implementation giảng dạy bám scene, **không** thay toàn bộ bằng `cv2.Canny()`.
 
 ## Hough Circle conventions và cách học
 
@@ -162,7 +160,7 @@ Chọn **Hough Circle Transform** trong sidebar. Ví dụ Manim chuẩn giữ t�
 
 Manim chỉ minh họa locus **liên tục**. Webapp thêm accumulator hữu hạn `A[r_index,b_row,a_col]`: grid center và radius gồm các bin nửa mở; full-locus sample các góc, mỗi observation chỉ ủng hộ một bin tối đa một lần trên mỗi radius layer. `Next Vote` có thể ghé cùng ô mà **không tăng count**. Detected circle lấy từ **bin center** của một peak; tie được báo rõ, không thay bằng ground truth hoặc fit liên tục. Unknown-radius dùng nhiều lát cắt chung center grid; chuyển r/bin/sampling/polarity/point dataset reset vote state. Giới hạn hiện tại: tối đa 30 point, 16 radius layers, 180 angle samples, 240.000 accumulator cells (int32); cấu hình vượt hạn mức bị từ chối trước khi cấp phát.
 
-Sáu preset: chuẩn, chưa biết r, cung thiếu, outlier, đảo polarity, hai circle cạnh tranh. Lab A điều khiển φ/r/point/loci và thêm/bỏ custom point theo ID; Lab B vote từng sample, một point hoặc tất cả, rewind/reset, xem peak và radius layers. Các chart đều dùng Cartesian y-up và tỉ lệ trục 1:1; ảnh raster của Sobel/Canny vẫn dùng row hướng xuống. [Ảnh Hough Circle final](docs/screenshots/final/circle-final.png).
+Sáu preset: chuẩn, chưa biết r, cung thiếu, outlier, đảo polarity, hai circle cạnh tranh. Lab A điều khiển φ/r/point/loci và thêm/bỏ custom point theo ID; Lab B vote từng sample, một point hoặc tất cả, rewind/reset, xem peak và radius layers. Các chart đều dùng Cartesian y-up và tỉ lệ trục 1:1; ảnh raster của Sobel/Canny vẫn dùng row hướng xuống.
 
 ## LSD teaching prototype · conventions và cách học
 
@@ -172,7 +170,7 @@ Fixture approved giữ nguyên `DATA_SEED=9`, shape `(10,12)`, chỉ số `[y,x]
 
 Reference τ=22.5°, minimum M=0.09, ε=1 tái tạo **N_T=20**, Candidate A `n=33,k=33,NFA≈3.1554436e−29` (ACCEPT) và B `n=4,k=2,NFA≈1.5771484` (REJECT). Đổi τ/M tạo lại toàn bộ vùng và score; đổi ε cập nhật quyết định. Manual seed chỉ để khám phá một vùng, không ghép với NFA full-image. NFA dùng log-domain upper tail để tránh overflow/underflow trung gian, và hiển thị scientific notation khi rất nhỏ.
 
-**Đây là interactive LSD teaching prototype dựa trên Chapter 3 LSR/binomial NFA, không phải published reference LSD đầy đủ. NFA hiển thị không phải bảo đảm false-alarm toàn ảnh đã hiệu chuẩn.** Vùng được chọn thích nghi và `N_T` chỉ đếm LSR đã grow, không phải toàn bộ rectangle-test family. [Ảnh support rectangle](docs/screenshots/final/lsd-support-rectangle.png).
+**Đây là interactive LSD teaching prototype dựa trên Chapter 3 LSR/binomial NFA, không phải published reference LSD đầy đủ. NFA hiển thị không phải bảo đảm false-alarm toàn ảnh đã hiệu chuẩn.** Vùng được chọn thích nghi và `N_T` chỉ đếm LSR đã grow, không phải toàn bộ rectangle-test family.
 
 ## Known limitations
 
