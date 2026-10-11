@@ -2,26 +2,21 @@
 
 Ứng dụng Streamlit phục vụ giảng dạy trực tiếp Chương 1: từ pixel, toán tử điểm và histogram đến nhiễu, biến đổi hình học, Fourier và kernel tích chập.
 
-## Setup on Windows
+## Setup on Windows · one root venv
+
+Chạy từ repository root bằng Python 3.11. `requirements.txt` ở root là manifest canonical cho cả hai Streamlit apps và Manim; không tạo venv con trong chapter.
 
 ```powershell
-cd chapter1_webapp
-py -m venv .venv
-.venv\Scripts\activate
-python -m pip install --upgrade pip
-pip install -r requirements.txt
-streamlit run app.py
+py -3.11 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m streamlit run chapter1_webapp\app.py
 ```
 
-Nếu lệnh `py` không hoạt động, dùng `python -m venv .venv`.
+Kiểm tra: `Push-Location chapter1_webapp; ..\.venv\Scripts\python.exe -B -m unittest discover -s tests; Pop-Location`.
 
-## Stop / deactivate
+## Stop
 
-Nhấn `Ctrl+C` để dừng Streamlit, sau đó:
-
-```powershell
-deactivate
-```
+Nhấn `Ctrl+C` để dừng Streamlit; các lệnh trên không cần activate/deactivate.
 
 ## Structure
 

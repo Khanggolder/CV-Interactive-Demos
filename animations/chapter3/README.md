@@ -1,7 +1,7 @@
 # Chapter 3 Manim animations
 
 Teaching animations for Chapter 3: Canny, point-to-curve Hough Transform,
-Hough accumulator voting, and RANSAC line fitting.
+Hough accumulator voting, RANSAC line fitting, LSD, Sobel and Hough Circle.
 
 ## Scene
 
@@ -23,9 +23,10 @@ From the repository root on Windows:
 
 ```powershell
 py -3.11 -m venv .venv
-.venv\Scripts\python -m pip install --upgrade pip
-.venv\Scripts\python -m pip install -r animations\chapter3\requirements.txt
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
+
+This is the same root `.venv` used by both Streamlit apps. The root `requirements.txt` is canonical; do not create a second environment under `animations/` or a chapter directory. Scene and verifier commands below intentionally run from `animations/chapter3/` so relative scene/media paths resolve correctly. Some video render/export workflows may require an FFmpeg executable; lightweight numerical verification and PyAV video decoding work without changing the approved scenes.
 
 ## Render
 
