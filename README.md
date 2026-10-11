@@ -47,13 +47,18 @@ Luồng dạy học chủ đạo là **Predict → Interact → Observe → Expl
 ```text
 requirements.txt              # bộ dependency canonical cho Python 3.11
 chapter1_webapp/              # app, utils, tests, sample images
-chapter3_webapp/              # app, sáu tutorial, numerical engines, tests, reports
+chapter3_webapp/              # app, sáu tutorial, numerical engines, tests
 animations/chapter3/          # bảy Manim scenes, verifier; media cục bộ Git-ignored
-PROJECT_FINAL_AUDIT_REPORT.md # inventory, test/browser và release status
 ```
 
-Ảnh minh họa: [Chapter 1 Pixel Explorer](chapter1_webapp/docs/screenshots/final/pixel-explorer.png) · [RANSAC Guided](chapter3_webapp/docs/screenshots/final/ransac-guided.png) · [LSD support rectangle](chapter3_webapp/docs/screenshots/final/lsd-support-rectangle.png). Các link này trỏ đến ảnh review chọn lọc được kiểm tra trong đợt final audit.
+## Xem trước
+
+| Pixel Explorer | RANSAC Guided | LSD support rectangle |
+| --- | --- | --- |
+| ![Pixel Explorer](chapter1_webapp/docs/screenshots/final/pixel-explorer.png) | ![RANSAC Guided](chapter3_webapp/docs/screenshots/final/ransac-guided.png) | ![LSD support rectangle](chapter3_webapp/docs/screenshots/final/lsd-support-rectangle.png) |
+
+Các ảnh trình diễn còn lại nằm trong thư mục `docs/screenshots/final/` của từng chapter.
 
 ## Giới hạn và trạng thái
 
-Đây là **teaching demos**, không phải detector production. RANSAC hữu hạn lần thử không bảo đảm nghiệm tối ưu; Hough dùng vote/bin rời rạc; Sobel giữ gradient có dấu; Canny NMS lượng tử bốn hướng; Hough Circle trả bin center; LSD dùng teaching-model NFA, không phải full reference LSD. Kết quả cụ thể phụ thuộc fixture, ngưỡng và tương tác. Chapter 1 và sáu module Chapter 3 đã triển khai; Chapter 2, 4 và 5 vẫn là roadmap, chưa có app tương ứng. Xem [báo cáo audit cuối](PROJECT_FINAL_AUDIT_REPORT.md) để biết trạng thái xác minh thực tế.
+Đây là **teaching demos**, không phải detector production. RANSAC hữu hạn lần thử không bảo đảm nghiệm tối ưu; Hough dùng vote/bin rời rạc; Sobel giữ gradient có dấu; Canny NMS lượng tử bốn hướng; Hough Circle trả bin center; LSD dùng teaching-model NFA, không phải full reference LSD. Kết quả cụ thể phụ thuộc fixture, ngưỡng và tương tác. Chapter 1 và sáu module Chapter 3 đã triển khai; Chapter 2, 4 và 5 vẫn là roadmap, chưa có app tương ứng. Quy ước và giới hạn chi tiết nằm trong README của từng chapter.
