@@ -34,6 +34,7 @@ Thumbs.db
 .mypy_cache/
 .ruff_cache/
 .ipynb_checkpoints/
+.final-audit-tools/
 
 # test coverage
 .coverage

@@ -264,6 +264,11 @@ st.markdown(
         background: #edf3f6;
         border-right: 1px solid var(--cv-line);
       }
+      /* Streamlit translates a closed sidebar by its inline 256px width. */
+      [data-testid="stSidebar"][aria-expanded="false"] {
+        min-width: 0;
+        max-width: none;
+      }
       [data-testid="stSidebar"] h2 {font-size: 1rem !important; letter-spacing: .065em; color: var(--cv-navy) !important;}
       [data-testid="stSidebar"] hr {border-color: #c9d6de;}
       [data-testid="stSidebar"] [role="radiogroup"] label {padding: .12rem 0;}
