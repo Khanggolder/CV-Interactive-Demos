@@ -35,6 +35,7 @@ Thumbs.db
 .ruff_cache/
 .ipynb_checkpoints/
 .final-audit-tools/
+chapter2_webapp/.*_profile-*/
 
 # test coverage
 .coverage
