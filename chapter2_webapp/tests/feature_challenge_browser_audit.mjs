@@ -4,7 +4,7 @@ import {mkdir,mkdtemp,rm,writeFile} from 'node:fs/promises';
 import path from 'node:path';
 
 const chapter=path.join(process.cwd(),'chapter2_webapp');
-const out=path.join(chapter,'docs','screenshots','feature_challenge');
+const out=process.env.CHAPTER2_AUDIT_OUT || path.join(chapter,'.audit_output','feature_challenge');
 const profile=await mkdtemp(path.join(chapter,'.feature_challenge_profile-'));
 const edge='C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
 await mkdir(out,{recursive:true});

@@ -5,7 +5,7 @@ import path from 'node:path';
 
 const root = process.cwd();
 const chapter = path.join(root, 'chapter2_webapp');
-const out = path.join(chapter, 'docs', 'screenshots', 'scale_space');
+const out = process.env.CHAPTER2_AUDIT_OUT || path.join(chapter, '.audit_output', 'scale_space');
 const profile = await mkdtemp(path.join(chapter, '.scale_space_audit_profile-'));
 const edge = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
 await mkdir(out, { recursive: true });

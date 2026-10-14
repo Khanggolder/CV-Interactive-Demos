@@ -4,19 +4,27 @@
 
 ## Setup on Windows · one root venv
 
-Chạy từ repository root bằng Python 3.11. `requirements.txt` ở root là manifest canonical cho cả hai Streamlit apps và Manim; không tạo venv con trong chapter.
+Tạo môi trường chung từ repository root bằng Python 3.11. `requirements.txt` ở root là manifest canonical cho cả ba Streamlit apps và Manim; không tạo venv con trong chapter.
 
 ```powershell
 py -3.11 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe -m streamlit run chapter1_webapp\app.py
+Push-Location chapter1_webapp
+..\.venv\Scripts\python.exe -m streamlit run app.py
+Pop-Location
 ```
 
 Kiểm tra: `Push-Location chapter1_webapp; ..\.venv\Scripts\python.exe -B -m unittest discover -s tests; Pop-Location`.
 
 ## Stop
 
-Nhấn `Ctrl+C` để dừng Streamlit; các lệnh trên không cần activate/deactivate.
+Nhấn `Ctrl+C` để dừng Streamlit; `Pop-Location` chạy sau khi server dừng. Working directory của chapter giúp nạp theme trong `.streamlit/config.toml`; không cần activate/deactivate.
+
+## Kiểm tra trên Edge thật
+
+Chạy server từ thư mục Chapter 1 với `--server.headless true --server.address 127.0.0.1 --server.port 8531`. Trong terminal khác ở repository root, chạy `node scripts/browser_audit.mjs chapter1`. Script kiểm tra màn hình đầu ở bốn viewport; sau đó đi qua tám trang và một số controls/upload/reveal ở laptop. Ảnh QA vào `.audit_output/chapter1/` (Git-ignored). Không cần package npm mới. Dừng server trước khi `Pop-Location`.
+
+Đặt `CV_AUDIT_MOBILE_ONLY=1` nếu chỉ muốn kiểm tra thêm Geometry ở tablet và Gamma/Fourier ở mobile.
 
 ## Structure
 

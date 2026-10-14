@@ -4,26 +4,35 @@ Phòng học tương tác cho môn **Xử lý ảnh và Thị giác máy tính**
 
 **Một root `.venv` · ba Streamlit apps · bảy Manim scenes đã duyệt.** Python 3.11 là phiên bản đã kiểm chứng trên Windows. Stack chính: Streamlit, NumPy, OpenCV headless, Pillow, Plotly và Manim 0.19.0. Không cần tải dataset lớn; sample giảng dạy có sẵn hoặc được sinh deterministic.
 
-## Chạy từ repository root (Windows PowerShell)
+## Cài đặt và chạy (Windows PowerShell)
 
 ```powershell
 py -3.11 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 .\.venv\Scripts\python.exe -m pip check
-.\.venv\Scripts\python.exe -m streamlit run chapter1_webapp\app.py
 ```
 
-Mở terminal khác để chạy Chapter 2 hoặc Chapter 3:
+Từ repository root, chuyển vào đúng chapter trước khi chạy để Streamlit nạp `.streamlit/config.toml` của app đó. Dừng server bằng `Ctrl+C`, rồi mới chạy `Pop-Location`. Dùng terminal riêng nếu muốn chạy nhiều app cùng lúc (đổi port khi cần).
 
 ```powershell
-.\.venv\Scripts\python.exe -m streamlit run chapter2_webapp\app.py
+Push-Location chapter1_webapp
+..\.venv\Scripts\python.exe -m streamlit run app.py
+Pop-Location
 ```
 
 ```powershell
-.\.venv\Scripts\python.exe -m streamlit run chapter3_webapp\app.py
+Push-Location chapter2_webapp
+..\.venv\Scripts\python.exe -m streamlit run app.py
+Pop-Location
 ```
 
-Không tạo `.venv` riêng trong từng chapter. Dừng server bằng `Ctrl+C`. Để chạy test với đúng import path, vẫn dùng **root interpreter** nhưng chuyển working directory:
+```powershell
+Push-Location chapter3_webapp
+..\.venv\Scripts\python.exe -m streamlit run app.py
+Pop-Location
+```
+
+Không tạo `.venv` riêng trong từng chapter. Để chạy test với đúng import path, vẫn dùng **root interpreter** nhưng chuyển working directory:
 
 ```powershell
 Push-Location chapter1_webapp
@@ -36,6 +45,8 @@ Push-Location chapter3_webapp
 ..\.venv\Scripts\python.exe -B -m unittest discover -s tests
 Pop-Location
 ```
+
+CI dùng [một workflow ba job](.github/workflows/webapp-tests.yml) với dependency webapp từ `chapter1_webapp/requirements.txt` (cùng phiên bản webapp đã pin ở root), không cài Manim chỉ để chạy unittest. Audit Edge cục bộ của Chapter 1/3 nằm ở `scripts/browser_audit.mjs`; ảnh QA mặc định vào `.audit_output/` và không theo dõi bởi Git.
 
 Manim verifier chạy từ `animations/chapter3/` bằng `..\..\.venv\Scripts\python.exe`, ví dụ `verify_lsd.py` hoặc `verify_sobel.py --preflight`. Xem [hướng dẫn Manim](animations/chapter3/README.md) để render/kiểm tra scene. FFmpeg CLI có thể cần cho workflow render/export cụ thể; các numerical verifier và video decode dùng PyAV của Manim.
 

@@ -54,6 +54,9 @@ st.markdown(
       .block-container {max-width: 1320px; padding-top: 3.75rem; padding-bottom: 4rem;}
       h1, h2, h3 {color: var(--cv-navy) !important; letter-spacing: -.02em;}
       p, li, label, [data-testid="stCaptionContainer"] {color: var(--cv-ink);}
+      [data-testid="stCaptionContainer"], [data-testid="stCaptionContainer"] * {
+        color: #334155 !important; opacity: 1 !important;
+      }
       .chapter-kicker {
         color: var(--cv-orange); font-size: .78rem; font-weight: 850;
         letter-spacing: .14em; margin-bottom: .35rem; text-transform: uppercase;

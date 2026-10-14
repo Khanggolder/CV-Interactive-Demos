@@ -5,8 +5,8 @@ import { writeFile, mkdir, mkdtemp, rm } from 'node:fs/promises';
 import path from 'node:path';
 
 const root = process.cwd();
-const out = path.join(root, 'chapter2_webapp', 'docs', 'screenshots');
 const chapter = path.join(root, 'chapter2_webapp');
+const out = process.env.CHAPTER2_AUDIT_OUT || path.join(chapter, '.audit_output', 'harris');
 const profile = await mkdtemp(path.join(chapter, '.browser_audit_profile-'));
 const edge = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
 const port = 9227;

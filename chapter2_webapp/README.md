@@ -4,10 +4,12 @@
 
 ## Chạy và kiểm thử
 
-Từ repository root, dùng môi trường `.venv` chung và dependency trong `requirements.txt` ở root:
+Từ repository root, dùng môi trường `.venv` chung và dependency trong `requirements.txt` ở root. Chuyển working directory để Streamlit nạp theme của Chapter 2; `Pop-Location` chạy sau khi dừng server bằng `Ctrl+C`:
 
 ```powershell
-.\.venv\Scripts\python.exe -m streamlit run chapter2_webapp\app.py
+Push-Location chapter2_webapp
+..\.venv\Scripts\python.exe -m streamlit run app.py
+Pop-Location
 ```
 
 ```powershell
@@ -27,6 +29,7 @@ tutorials/              Guided, Lab, Presentation và session state từng modul
 utils/                  Năm engine số học và các hàm trực quan hóa
 tests/                  Unit/AppTest và sáu script Edge/CDP browser audit
 docs/screenshots/       Ảnh minh họa được tuyển chọn; không phải runtime assets
+.audit_output/           Kết quả browser audit mới; Git-ignored, không ghi đè ảnh trên
 ```
 
 Năm engine là `utils/harris.py`, `scale_space.py`, `sift.py`, `orb.py`, `feature_challenge.py`. SIFT tái sử dụng scale-space; Challenge tái sử dụng detector/descriptor đã học. Các file `*_visualization.py` biến kết quả tính thật thành hình; `tutorials/` điều phối nội dung và state. Không có ảnh trong `docs/` được tải bởi app hay tests.
@@ -34,11 +37,13 @@ Năm engine là `utils/harris.py`, `scale_space.py`, `sift.py`, `orb.py`, `featu
 Kiểm tra browser đầy đủ, từ repository root sau khi chạy server ở `127.0.0.1:8522`:
 
 ```powershell
-.\.venv\Scripts\python.exe -m streamlit run chapter2_webapp\app.py --server.headless true --server.address 127.0.0.1 --server.port 8522
+Push-Location chapter2_webapp
+..\.venv\Scripts\python.exe -m streamlit run app.py --server.headless true --server.address 127.0.0.1 --server.port 8522
+Pop-Location
 node chapter2_webapp/tests/final_chapter2_browser_audit.mjs
 ```
 
-Script tích hợp đi qua cả năm module và các chế độ; các script `*_browser_audit.mjs` còn lại là kiểm tra sâu từng module. Chúng dùng Edge DevTools cục bộ, không yêu cầu thư viện JS mới và có thể tạo ảnh kiểm thử mới trong `docs/screenshots/`; chỉ đưa ảnh đã tuyển chọn vào Git.
+Chạy server trong một terminal; chỉ chạy dòng `node` trong terminal khác từ repository root sau khi server đã sẵn sàng. Script tích hợp đi qua cả năm module và các chế độ; các script `*_browser_audit.mjs` còn lại kiểm tra sâu từng module. Chúng dùng Edge DevTools cục bộ, không yêu cầu thư viện JS mới. Ảnh mới mặc định vào `.audit_output/<audit-name>/` (Git-ignored); có thể đặt `CHAPTER2_AUDIT_OUT` để đổi đường dẫn. Script không tự xóa output có sẵn. Ảnh được tuyển chọn trong `docs/screenshots/final_audit/` giữ nguyên.
 
 ## Quy ước và giới hạn
 

@@ -6,8 +6,8 @@ import path from 'node:path';
 
 const root=process.cwd();
 const chapter=path.join(root,'chapter2_webapp');
-// Keep repository evidence curated; set this to a temporary directory for reruns.
-const out=process.env.CHAPTER2_AUDIT_OUT || path.join(chapter,'docs','screenshots','final_audit');
+// Generated evidence is separate from curated, tracked README screenshots.
+const out=process.env.CHAPTER2_AUDIT_OUT || path.join(chapter,'.audit_output','final_audit');
 const profile=await mkdtemp(path.join(chapter,'.final_chapter2_profile-'));
 const edge='C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
 const port=9241;

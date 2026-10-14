@@ -97,10 +97,12 @@ Từ repository root trên Windows PowerShell:
 ```powershell
 py -3.11 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe -m streamlit run chapter3_webapp\app.py
+Push-Location chapter3_webapp
+..\.venv\Scripts\python.exe -m streamlit run app.py
+Pop-Location
 ```
 
-Root `requirements.txt` là manifest canonical cho **một** `.venv` dùng chung Chapter 1, Chapter 3 và Manim. Không tạo môi trường con. Trong sidebar, chọn một trong sáu module, rồi Guided hoặc Lab.
+Root `requirements.txt` là manifest canonical cho **một** `.venv` dùng chung Chapter 1, 2, 3 và Manim. Không tạo môi trường con. Chạy từ working directory Chapter 3 để nạp `.streamlit/config.toml`; `Pop-Location` chạy sau `Ctrl+C`. File `chapter3_webapp/requirements.txt` là manifest tối thiểu cho triển khai app Chapter 3 độc lập, không thay thế root manifest. Trong sidebar, chọn một trong sáu module, rồi Guided hoặc Lab.
 
 ## Hough conventions và fixture
 
@@ -134,9 +136,13 @@ Tests kiểm tra cả sáu module, gồm Hough Circle geometry/voting và LSD gr
 5. Kiểm tra ở viewport hẹp: step indicator gọn một hàng và các nút Previous, Next, Reset vẫn dùng được.
 6. Bật Presentation Mode và xác nhận biểu đồ, marker, nhãn lớn hơn nhưng công thức/kết quả không đổi.
 
+Audit Edge cục bộ: chạy server từ thư mục Chapter 3 với `--server.headless true --server.address 127.0.0.1 --server.port 8533`; trong terminal khác ở repository root chạy `node scripts/browser_audit.mjs chapter3`. Script kiểm tra màn hình RANSAC đầu ở bốn viewport; ở laptop, nó đi qua toàn bộ Guided, thử một tương tác Lab và bật Presentation cho từng module. Ảnh QA vào `.audit_output/chapter3/` (Git-ignored). Không cần package npm mới. Dừng server trước khi `Pop-Location`.
+
+Đặt `CV_AUDIT_MOBILE_ONLY=1` để kiểm tra thêm Canny ở tablet và Hough Circle/LSD (gồm Presentation) ở mobile.
+
 ## Sobel conventions và cách chạy
 
-Trong sidebar chọn **Sobel Convolution**, rồi Guided hoặc Experiment Lab; bật **Presentation Mode** khi trình chiếu. Không thêm dependency: chạy `python -m streamlit run chapter3_webapp/app.py` từ repo root, và `python -m unittest discover -s tests` trong `chapter3_webapp/` bằng environment đã cài `requirements.txt`.
+Trong sidebar chọn **Sobel Convolution**, rồi Guided hoặc Experiment Lab; bật **Presentation Mode** khi trình chiếu. Không thêm dependency: dùng lệnh chạy chapter-local ở mục Setup, và chạy `python -m unittest discover -s tests` trong `chapter3_webapp/` bằng root environment.
 
 Ảnh grayscale dùng số nguyên 0–255. Mask Gx `[-1,0,1];[-2,0,2];[-1,0,1]`, Gy `[-1,-2,-1];[0,0,0];[1,2,1]` được **áp trực tiếp theo cross-correlation**, không lật như convolution toán học. Hàng/y ảnh tăng xuống, cột/x tăng sang phải. `Gx=sum(P*Kx)`, `Gy=sum(P*Ky)`, `M=hypot(Gx,Gy)`, `θ=atan2(Gy,Gx)` theo tọa độ ảnh. Vector khi vẽ lên mặt phẳng y hướng lên là `(Gx,-Gy)`. Nếu M=0, θ **Undefined**. Response Gx/Gy có dấu, không clip 0–255; màu Plotly chỉ chuẩn hóa để nhìn và nhãn ô vẫn là giá trị thô. Chỉ tính center interior của patch 3×3, border hiển thị `—`, không zero-padding.
 
