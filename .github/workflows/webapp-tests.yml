@@ -1,0 +1,40 @@
+name: Webapp tests
+
+on:
+  push:
+    paths:
+      - '.github/workflows/webapp-tests.yml'
+      - 'requirements.txt'
+      - 'chapter1_webapp/**'
+      - 'chapter2_webapp/**'
+      - 'chapter3_webapp/**'
+  pull_request:
+    paths:
+      - '.github/workflows/webapp-tests.yml'
+      - 'requirements.txt'
+      - 'chapter1_webapp/**'
+      - 'chapter2_webapp/**'
+      - 'chapter3_webapp/**'
+
+jobs:
+  unittest:
+    name: ${{ matrix.chapter }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        chapter: [chapter1_webapp, chapter2_webapp, chapter3_webapp]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      # Chapter 1's existing pinned app-only manifest matches the root webapp
+      # versions. Omit root-only Manim, which is not used by these tests.
+      - name: Install webapp dependencies
+        run: |
+          python -m pip install -r chapter1_webapp/requirements.txt
+          python -m pip check
+      - name: Run chapter tests
+        working-directory: ${{ matrix.chapter }}
+        run: python -B -m unittest discover -s tests

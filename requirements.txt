@@ -1,4 +1,4 @@
-# Canonical Python 3.11 environment for both Streamlit apps and approved Manim scenes.
+# Canonical Python 3.11 environment for all three Streamlit apps and approved Manim scenes.
 streamlit==1.50.0
 numpy==2.2.6
 opencv-python-headless==4.12.0.88
