@@ -56,6 +56,7 @@ Manim verifier chạy từ `animations/chapter3/` bằng `..\..\.venv\Scripts\py
 | --- | --- |
 | [Chapter 1](chapter1_webapp/README.md) | Pixel Explorer; Brightness/Contrast; Gamma; Histogram/Equalization/CLAHE; Noise và Gaussian/Median; Geometry/inverse mapping/interpolation; Fourier Ideal/Gaussian LP; Convolution kernels. |
 | [Chapter 2](chapter2_webapp/README.md) | Harris & Shi-Tomasi (14 bước); Gaussian Scale Space, LoG & DoG (15 bước); SIFT (18 bước); FAST/BRIEF/ORB-style (18 bước); Feature Matching Challenge (14 bước, ba Lab và Classroom Challenge) tích hợp ba detector/descriptor trên cùng cặp ảnh. |
+| [Manim Chapter 2](animations/chapter2/README.md) | Hai animation Harris Corner Detection và SIFT Feature Pipeline; có verifier số học, bản review và final cục bộ. |
 | [Chapter 3](chapter3_webapp/README.md) | RANSAC; Hough Line + Accumulator; Sobel; Canny; Hough Circle; LSD. Mỗi module có Guided Tutorial, Experiment Lab, Presentation Mode và visual tính từ state thật. |
 | [Manim Chapter 3](animations/chapter3/README.md) | Bảy scene được duyệt: Canny, Hough point-to-curve, Hough accumulator, RANSAC, LSD, Sobel, Hough Circle. |
 
@@ -70,6 +71,7 @@ requirements.txt              # bộ dependency canonical cho Python 3.11
 chapter1_webapp/              # app, utils, tests, sample images
 chapter2_webapp/              # Harris/Shi-Tomasi, Scale Space/LoG/DoG, SIFT, ORB-style, Feature Matching Challenge
 chapter3_webapp/              # app, sáu tutorial, numerical engines, tests
+animations/chapter2/          # hai Manim scenes Harris và SIFT, verifier; media cục bộ Git-ignored
 animations/chapter3/          # bảy Manim scenes, verifier; media cục bộ Git-ignored
 ```
 
