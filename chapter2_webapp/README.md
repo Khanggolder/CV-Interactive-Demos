@@ -18,7 +18,7 @@ Push-Location chapter2_webapp
 Pop-Location
 ```
 
-Không cần tải dataset. Các cảnh dạy học được sinh deterministic. Guided có tổng cộng 79 bước và các prediction/reveal gate; Experiment Lab cho phép thay tham số, xem kết quả tương ứng; Presentation Mode tăng khả năng đọc khi chiếu lớp. Xem [Teaching Guide](TEACHING_GUIDE.md) để chuẩn bị câu hỏi, lịch 45/90 phút và bài tập.
+Không cần tải dataset. Các cảnh dạy học được sinh deterministic. Guided có tổng cộng 79 bước và các prediction/reveal gate; Experiment Lab cho phép thay tham số, xem kết quả tương ứng; Presentation Mode tăng khả năng đọc khi chiếu lớp.
 
 ## Cấu trúc
 

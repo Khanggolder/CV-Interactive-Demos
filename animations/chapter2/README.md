@@ -1,14 +1,16 @@
 # Chapter 2 Manim · Harris and SIFT
 
-Two lecture animations extend the Chapter 2 Guided Tutorials. They use the
-Streamlit-free numerical engines in `chapter2_webapp/utils/`; neither animation
-imports a Streamlit UI module. Both are self-contained in this directory apart
-from those existing engines and the root dependencies.
+Four lecture animations extend the Chapter 2 Guided Tutorials. They use the
+Streamlit-free numerical engines in `chapter2_webapp/utils/`; no animation
+imports a Streamlit UI module. Their scene code and fixtures live in this
+directory, with the existing engines and root dependencies.
 
-| Scene | Source | Storyboard | Target |
+| Scene | Source | Role | Target |
 | --- | --- | --- | --- |
-| `HarrisCornerDetection` | `harris_corner.py` | flat/edge/corner → shift energy → Sobel and Gaussian-integrated tensor → eigenvalues → signed Harris response → threshold and 5×5 NMS → detected corner and scale limitation | 50–65 s |
-| `SIFTFeaturePipeline` | `sift_pipeline.py` | transformed view → Gaussian octaves → signed DoG → strict 26-neighbor candidate → Taylor refinement → contrast/edge filters → 36-bin orientation → rotated local frame → 4×4×8 descriptor → L2/clip/L2 → Lowe ratio and post-hoc affine check → overview | 80–100 s |
+| `HarrisCornerDetection` | `harris_corner.py` | Approved Harris V1 | 50–65 s |
+| `SIFTFeaturePipeline` | `sift_pipeline.py` | Short SIFT V1 overview | 80–100 s |
+| `SIFTDeepDive` | `sift_deep_dive.py` | Original detailed V2, retained for reference | 7–9 min |
+| `SIFTDeepDiveV21` | `sift_deep_dive_v21.py` | Recommended detailed V2.1 Final Polished | ~10.4 min |
 
 The visual system follows Chapter 3: 16:9, navy `#0B1020`, blue image data,
 orange active responses, yellow inspection, green accepted results, purple
@@ -90,3 +92,93 @@ Generated files stay under Git-ignored `media/`:
 
 The Guided Tutorials remain interactive and allow changes to fixtures and
 parameters; these videos follow one fixed, verified path for lectures.
+
+## SIFT Deep Dive V2
+
+`SIFTDeepDive` in `sift_deep_dive.py` is a separate 7–9 minute lesson. It does
+not replace `SIFTFeaturePipeline`. `sift_deep_dive_data.py` builds one
+deterministic 129×129 grayscale camera with an asymmetric body, concentric
+lens, viewfinder, flash and small interior marks. The same image produces the
+Gaussian pyramid, signed DoG, extrema, refined keypoints, orientations and
+descriptors. Matching uses a 17° rotation and 0.94 scale copy of that camera.
+
+The engine computes three octaves at 129², 65² and 33² pixels, with six
+Gaussian and five DoG levels each: 18 Gaussian images and 15 signed differences.
+The source image yields 104 strict DoG candidates, 68 successfully refined
+candidates, 25 filtered keypoint locations and 42 orientation/descriptor
+records. The transformed copy yields 31 descriptor records. One accepted Lowe
+match has geometric error about 0.0104 px; another accepted match on the same
+object has about 9.77 px error, so the lesson shows geometric verification as
+a distinct post-match check. The known affine transform never chooses matches.
+
+The video follows a measured camera pixel and the engine's 15×15 normalized
+Gaussian kernel, incremental sigma, sampled octave transitions, parent-child
+DoG subtraction, strict 26-neighbor comparisons, 3×3 Taylor localization,
+an observed recenter from column 103 to 102 before the subpixel offset,
+separate 2×2 edge rejection, 36-bin orientation voting, 4×4×8 descriptor
+interpolation, L2/clip/L2 and Lowe ratio. A second valid orientation is shown
+at one physical location. Lower-resolution octave arrays are enlarged with nearest
+neighbor sampling only for the continuous Manim image transform; numerical
+arrays and resolution labels retain their original values. This educational
+engine is a discrete SIFT approximation rather than OpenCV bit equivalence.
+
+From `animations/chapter2/` with the existing root `.venv`:
+
+```powershell
+..\..\.venv\Scripts\python.exe -X utf8 -B verify_sift_deep_dive.py --preflight
+..\..\.venv\Scripts\python.exe -X utf8 -B -m manim -ql --disable_caching -o SIFTDeepDive_review.mp4 sift_deep_dive.py SIFTDeepDive
+..\..\.venv\Scripts\python.exe -X utf8 -B verify_sift_deep_dive.py --video review --contact-sheet
+..\..\.venv\Scripts\python.exe -X utf8 -B -m manim -qh --fps 30 --disable_caching -o SIFTDeepDive_final.mp4 sift_deep_dive.py SIFTDeepDive
+..\..\.venv\Scripts\python.exe -X utf8 -B verify_sift_deep_dive.py --video final
+```
+
+Review: `media/videos/sift_deep_dive/480p15/SIFTDeepDive_review.mp4`.
+Final: `media/videos/sift_deep_dive/1080p30/SIFTDeepDive_final.mp4`.
+Contact sheet: `media/sift_deep_dive_contact.png`. All are ignored by Git.
+
+## SIFT Deep Dive V2.1 — Final Polished (recommended)
+
+`SIFTDeepDiveV21` in `sift_deep_dive_v21.py` reuses the V2 camera fixture and
+numerical engines without changing the approved V2 scene or its MP4s. This is
+the recommended detailed lecture animation; V2 remains available for reference.
+It adds a fixed grayscale Gaussian pixel scan, an explicit `G(0,3)[::2,::2]` octave
+transition, five labeled signed DoG responses for one pixel, and a continuous
+transition from the selected D1 response to its three 3×3 neighbor matrices.
+The D1 value is first identified as a minimum along scale at one pixel; only
+the later strict 26-neighbor check identifies a raw 3D DoG candidate.
+
+The orientation lesson computes central differences on the actual Gaussian
+level, reverses image y only when drawing screen arrows, weights gradient
+votes by distance, fills 36 initially empty bins, applies the engine's
+five-tap circular smoothing, and selects the actual histogram peak. The
+descriptor lesson follows the real oriented patch, splits one gradient among
+up to eight 4×4×8 components, accumulates several sample contributions into
+one component, builds all 16 cell histograms, and traces their indices into
+128D. The final stages show L2/clip/L2, Euclidean descriptor distance, Lowe
+ratio, and the separately revealed affine geometry check.
+
+Run from `animations/chapter2/` with the existing root `.venv`:
+
+```powershell
+..\..\.venv\Scripts\python.exe -X utf8 -B verify_sift_deep_dive_v21.py --preflight
+..\..\.venv\Scripts\python.exe -X utf8 -B -m manim -ql --disable_caching -o SIFTDeepDive_V21_review_polished.mp4 sift_deep_dive_v21.py SIFTDeepDiveV21
+..\..\.venv\Scripts\python.exe -X utf8 -B verify_sift_deep_dive_v21.py --video review --contact-sheet
+..\..\.venv\Scripts\python.exe -X utf8 -B -m manim -qh --fps 30 --disable_caching -o SIFTDeepDive_V21_final_polished.mp4 sift_deep_dive_v21.py SIFTDeepDiveV21
+..\..\.venv\Scripts\python.exe -X utf8 -B verify_sift_deep_dive_v21.py --video final
+```
+
+The verifier is `verify_sift_deep_dive_v21.py`; it also runs the V2 checks in
+`verify_sift_deep_dive.py`. Both scenes depend on `sift_deep_dive_data.py`,
+`chapter2_common.py`, and the tracked `chapter2_webapp/utils/scale_space.py`
+and `sift.py` engines. The root `requirements.txt` supplies Python packages.
+
+Recommended local final:
+`media/videos/sift_deep_dive_v21/1080p30/SIFTDeepDive_V21_final_polished.mp4`.
+Local review:
+`media/videos/sift_deep_dive_v21/480p15/SIFTDeepDive_V21_review_polished.mp4`.
+These MP4s are Git-ignored local outputs, not hosted in this repository. The
+V2 final under `media/videos/sift_deep_dive/` and the original V2.1 final are
+retained as historical versions. The polished V2.1's Gaussian panel labels
+the 3×3 kernel excerpt within the full 15×15 kernel;
+the trilinear panel shows magnitude, Gaussian weight and all four factors
+before summarizing the eight computed contributions.
