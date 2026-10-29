@@ -62,7 +62,7 @@ Manim verifier chạy từ `animations/chapter3/` bằng `..\..\.venv\Scripts\py
 
 Luồng dạy học chủ đạo là **Predict → Interact → Observe → Explain → Experiment**. Chế độ Guided giữ các prediction/reveal gate; Lab cho phép thử dữ liệu và tham số; Presentation Mode tăng độ đọc khi trình chiếu.
 
-Chapter 2 có [Teaching Guide](chapter2_webapp/TEACHING_GUIDE.md) để chuẩn bị buổi học; hướng dẫn chạy, giới hạn và ảnh minh họa nằm trong [README của Chapter 2](chapter2_webapp/README.md).
+Hướng dẫn chạy, giới hạn và ảnh minh họa của Chapter 2 nằm trong [README của Chapter 2](chapter2_webapp/README.md).
 
 ## Cấu trúc
 
